@@ -878,9 +878,6 @@ def gillespie_algorithm_two_steps(
 
     t_matrix = np.empty(nt, dtype=object)
     x_matrix = np.empty(nt, dtype=object)
-    
-    tb_array = []
-    tr_array = []
 
     # --- Loop on trajectories --- #
     for _ in range(0,nt) :
@@ -939,7 +936,6 @@ def gillespie_algorithm_two_steps(
 
             # Binding : whatever happens loop extrusion spends time trying to bind event if it fails  
             t += t_bind
-            tb_array.append(t_bind)
 
             # Acquisition 1
             t_list.append(t)
@@ -955,7 +951,6 @@ def gillespie_algorithm_two_steps(
             # --- Resting after an attempt --- #
 
             t_rest = - np.log(np.random.rand())/rtot_rest       # Random time of resting after an attempt
-            tr_array.append(t_rest)
 
             # Condition on time for resting
             if np.isinf(t_rest) == True:
@@ -979,7 +974,7 @@ def gillespie_algorithm_two_steps(
         t_matrix[_] = t_list
         x_matrix[_] = x_list
 
-    return results, t_matrix, x_matrix, tb_array, tr_array
+    return results, t_matrix, x_matrix
 
 
 # ================================================
@@ -1611,6 +1606,44 @@ def HiC_map_generation(data: np.ndarray) -> np.ndarray:
 
 
 # ================================================
+# Part 2.9 : Dynamic analysis functions
+# ================================================
+
+
+def listoflist_into_matrix(listoflist: list) -> np.ndarray:
+    """
+    Converts a list of lists with varying lengths into a 2D NumPy array,
+    padding shorter rows with np.nan so that all rows have equal length.
+    """
+    len_max = max(len(row) for row in listoflist)
+    matrix = np.full((len(listoflist), len_max), np.nan)
+    for i, row in enumerate(listoflist):
+        matrix[i, :len(row)] = row
+    return matrix
+
+
+def extract_bind_and_rest_times(t_matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Extracts inter-event times from a 2D array of cumulative times,
+    returning flattened arrays of alternating event types (REST and BIND),
+    while ignoring any np.nan padding.
+    """
+    diffs = np.diff(t_matrix, axis=1)
+    t_even = diffs[:, 0::2]
+    t_odd = diffs[:, 1::2]
+
+    flat_bind = t_even.ravel()
+    t_bind = flat_bind[~np.isnan(flat_bind)]
+
+    flat_rest = t_odd.ravel()
+    t_rest = flat_rest[~np.isnan(flat_rest)]
+
+    return t_bind, t_rest
+
+
+# hereee
+
+# ================================================
 # Part 3.1 : Main function
 # ================================================
 
@@ -1622,8 +1655,8 @@ def sw_nucleo(
     bpmin: int, 
     mu: float, 
     theta: float, 
+    lmbda: float,
     nt: int,
-    path: str,
     tmax: float, 
     dt: float, 
     alphao: float, 
@@ -1632,7 +1665,8 @@ def sw_nucleo(
     Lmin: int, 
     Lmax: int, 
     bps: int, 
-    origin: int
+    origin: int,
+    algorithm_choice = "two_steps"
     ) -> None:
     """
     Simulates condensin dynamics along chromatin with specified parameters.
@@ -1654,6 +1688,7 @@ def sw_nucleo(
         Lmax (int): Last point of chromatin.
         origin (int): Starting position for the simulation.
         bps (int): Number of base pairs per site.
+        algorithm_choice (str) : Choice of algorithm for the modeling.
 
     Returns:
         None: This function does not return any value. It performs a simulation and saves results in a file.
@@ -1675,6 +1710,7 @@ def sw_nucleo(
 
     # Chromatin
     L = np.arange(Lmin, Lmax, bps)
+    lenght = (Lmax-Lmin) // bps
 
     # Calibration 
     times = np.arange(0,tmax,dt)    # Discretisation of all times
@@ -1695,9 +1731,10 @@ def sw_nucleo(
     p = proba_gamma(mu, theta, L)
 
     # Modeling - Gillespie 1 step or 2 steps
-    # results, t_matrix, x_matrix = gillespie_algorithm_one_step(nt, tmax, dt, alpha_matrix, beta, Lmax, lenght, origin, p)
-    lmbda = 0.30 # 0.30
-    results, t_matrix, x_matrix, tb_array, tr_array = gillespie_algorithm_two_steps(nt, tmax, dt, alpha_matrix, beta, L, Lmax, origin, bps, p, lmbda)
+    if algorithm_choice == "one_step":
+        results, t_matrix, x_matrix = gillespie_algorithm_one_step(nt, tmax, dt, alpha_matrix, beta, Lmax, lenght, origin, p)
+    elif algorithm_choice == "two_steps":
+        results, t_matrix, x_matrix = gillespie_algorithm_two_steps(nt, tmax, dt, alpha_matrix, beta, L, Lmax, origin, bps, p, lmbda)
 
     # Results
     results_mean, results_med, results_std, v_mean, v_med = calculate_main_results(results, dt, alpha_0, nt)
@@ -1719,12 +1756,13 @@ def sw_nucleo(
     gc.collect()
 
     # Composing the main result that will be written
-    data_result = {
+    data_result = {                                            
         
-        'alpha_choice': alpha_choice, 's': s, 'l': l, 'bpmin': bpmin, 'mu': mu, 'theta': theta, 'lmbda':lmbda,
-        'nt': nt, 'tmax': tmax, 'dt': dt,
-        'alphao': alphao, 'alphaf': alphaf, 'beta': beta, 
-        'Lmin': Lmin, 'Lmax': Lmax, 'origin': origin, 'bps': bps,
+        'alpha_choice': alpha_choice, 's': s, 'l': l, 'bpmin': bpmin,                               # parameters
+        'mu': mu, 'theta': theta, 'alphao': alphao, 'alphaf': alphaf, 'beta': beta, 'lmbda':lmbda,  # probabilities
+        'Lmin': Lmin, 'Lmax': Lmax, 'bps': bps,'origin': origin,                                    # chromatin
+        'tmax': tmax, 'dt': dt,                                                                     # time   
+        'nt': nt,                                                                                   # trajectories
 
         'alpha_mean': alpha_mean,
         'obs_points':obs_points, 'obs_distrib':obs_distrib,
@@ -1756,62 +1794,43 @@ def sw_nucleo(
     # inspect_data_types(data_result)
 
     # Writing event
-    file_name = "data_nucleo"
-    writing_parquet(file_name, title, data_result)
+    writing_parquet("data_nucleo", title, data_result)
 
 
     # --------- Working area --------- #
     
+    # 1. Speed value in function of lmbda
+
     def theoretical_value(alphaf, alphao, s, l, mu, lmbda):
         return((s*alphao + l*alphaf) / (l+s) * mu * (1-lmbda))
     
     print("v_mean=", v_mean)
     print(f"v_th={theoretical_value(alphaf, alphao, s, l, mu, lmbda):.2f}")
 
-    
-    # plt.figure(figsize=(8,6))
-    # plt.plot(t_matrix[0], x_matrix[0], label=f"lmbda={lmbda} - v_mean={v_mean:.2f}")
-    # for i in range(0,10):
-    #     plt.plot(t_matrix[i], x_matrix[i], label=f"lmbda={lmbda}")
-    # plt.legend()
-    # plt.show()
 
-    
-    def forward_and_reverse(t_matrix, x_matrix):
+    # 2. Forward and Reverse steps
+    t_full = listoflist_into_matrix(t_matrix)
+    x_full = listoflist_into_matrix(x_matrix)
 
-        t_data = np.concatenate(t_matrix)
-        x_data = np.concatenate(x_matrix)
+    print(x_full[0])
 
-        f_stack, r_stack = [], []
 
-        for i in range(0, len(x_data)-2):
-            if x_data[i] == x_data[i+2]:
-                f_stack.append(t_data[i])
-            else:
-                r_stack.append(t_data[i])
 
-        # Le truc c'est que comme on a concatenate c'est même plus vrai en fait 
-        # Faut le faire par array en plus .append c'est naze
-        # + faut bien ajouter le bon temps genre pas sur que ce soit i ou i+1 etc
 
-        # max_size = np.max([len(x_list) for x_list in x_matrix])
-        # print(max_size)
-        # try_x = np.array(x_matrix)
-
-        fx, fy = calculate_distribution(data=np.array(f_stack), first_bin=0, last_bin=np.max(f_stack), bin_width=0.5)
-        rx, ry = calculate_distribution(data=np.array(r_stack), first_bin=0, last_bin=np.max(r_stack), bin_width=0.5)
-
-        return fx, fy, rx, ry
-    
-
-    fx, fy, rx, ry = forward_and_reverse(t_matrix, x_matrix)
+    # Tous les temps de bind et de rest sont là
+    bind_array, rest_array = extract_bind_and_rest_times(t_full) 
+    # J'ai leur distribution
+    bind_x, bind_y = calculate_distribution(data=bind_array, first_bin=0, last_bin=10, bin_width=0.1)
+    rest_x, rest_y = calculate_distribution(data=rest_array, first_bin=0, last_bin=10, bin_width=0.1)
 
     plt.figure(figsize=(8,6))
-    plt.plot(fx, fy, label="f_distrib")
-    plt.plot(rx, ry, label="r_distrib")
+    plt.plot(bind_x, bind_y, label="bind")
+    plt.plot(rest_x, rest_y, label="rest")
     plt.legend()
     plt.savefig("/home/nicolas/Documents/Workspace/working_on/outputs/output.png")
 
+
+    # 3. Exposant de fit exponentiel decroissant
 
     # plt.figure(figsize=(8,6))
 
@@ -1835,10 +1854,8 @@ def sw_nucleo(
     # plt.loglog()
     # plt.show()
     
-    # # Tous les temps donc faut découpler les temps d'attente et les temps 
 
-
-    # --------- Worked ------------#
+    # --------- ------------#
 
     # Second cleaning
     for key in list(data_result.keys()):
@@ -1974,6 +1991,7 @@ def choose_configuration(config: str):
     alphao = 0                              # Probability of beeing rejected
     alphaf = 1                              # Probability of beeing accepted
     beta = 0
+    lmbda = 0.40
     Lmin = 0                                # First point of chromatin (included !)
     Lmax = 50_000                           # Last point of chromatin (excluded !)
     bps = 1                                 # Based pair step 1 per 1
@@ -2037,9 +2055,11 @@ def choose_configuration(config: str):
     else:
         raise ValueError(f"Unknown configuration identifier: {config}")
 
-    return (alpha_choice_values, s_values, l_values, bpmin_values, mu_values, theta_values, 
-            nt, path,
-            tmax, dt, alphao, alphaf, beta, Lmin, Lmax, bps, origin)
+    return (alpha_choice_values, s_values, l_values, bpmin_values,  # parameters
+            mu_values, theta_values, lmbda, alphao, alphaf, beta,   # probabilities
+            Lmin, Lmax, bps, origin,                                # chromatin
+            tmax, dt,                                               # time        
+            nt)                                                     # trajectories
 
 
 def process_function(params: tuple) -> None:
@@ -2062,7 +2082,7 @@ def process_function(params: tuple) -> None:
         - The function assumes that `sw_nucleo` is defined elsewhere in the code and takes the listed parameters.
     """
     # Unpack parameters from the input tuple
-    alpha_choice, s, l, bpmin, mu, theta, nt, path, tmax, dt, alphao, alphaf, beta, Lmin, Lmax, bps, origin = params
+    alpha_choice, s, l, bpmin, mu, theta, lmbda, alphao, alphaf, beta, Lmin, Lmax, bps, origin, tmax, dt, nt = params
 
     # # Getting the verification on inputs
     # checking_inputs(
@@ -2075,7 +2095,7 @@ def process_function(params: tuple) -> None:
     # )
 
     # Call the `sw_nucleo` function with the given parameters
-    sw_nucleo(alpha_choice, s, l, bpmin, mu, theta, nt, path, tmax, dt, alphao, alphaf, beta, Lmin, Lmax, bps, origin)
+    sw_nucleo(alpha_choice, s, l, bpmin, mu, theta, lmbda, nt, tmax, dt, alphao, alphaf, beta, Lmin, Lmax, bps, origin)
 
     return None
 
