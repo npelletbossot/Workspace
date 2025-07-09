@@ -1764,13 +1764,14 @@ def sw_nucleo(
     alpha_0 = int(1e+0)             # Calibration on linear speed in order to multiplicate speeds by a linear number
     bin_fpt = int(1e+1)             # Bins on times during the all analysis
 
+    # Bins for Forward and Reverse jumps
+    first_bin, last_bin, bin_width = 0, 100, 0.10
+    bins = np.arange(first_bin, last_bin, bin_width)
 
     # --- Simulation --- #
 
-    # Landscape
+    # Chromatin : Landscape + Obstacles and Linkers
     alpha_matrix, alpha_mean = alpha_matrix_calculation(alpha_choice, s, l, bpmin, alphao, alphaf, Lmin, Lmax, bps, nt)
-
-    # Obstacles and Linkers
     obs_points, obs_distrib, link_points, link_distrib = calculate_obs_and_linker_distribution(alpha_matrix[0], alphao, alphaf)
     link_view = calculate_linker_landscape(alpha_matrix, alpha_choice, nt, alphaf, Lmin, Lmax)
 
@@ -1787,11 +1788,11 @@ def sw_nucleo(
     results_mean, results_med, results_std, v_mean, v_med = calculate_main_results(results, dt, alpha_0, nt)
     vf, Cf, wf, vf_std, Cf_std, wf_std, xt_over_t, G, bound_low, bound_high = fitting_in_two_steps(times, results_mean, results_std)
 
-    # Times
+    # Times : First pass times + Waiting times + Forward and Reverse times
     fpt_distrib_2D, fpt_number = calculate_fpt_matrix(t_matrix, x_matrix, tmax, bin_fpt)
-
-    # Waiting times
     tbj_points, tbj_distrib = calculate_distrib_tbjs(t_matrix)
+    fb_y, fr_y, rb_y, rr_y = calculate_nature_jump_distribution(t_matrix, x_matrix, first_bin, last_bin, bin_width)
+    tau_fb, tau_fr, tau_rb, tau_rr, y0_fb, y0_fr, y0_rb, y0_rr = extracting_taus(fb_y, fr_y, rb_y, rr_y, bins)
 
     # Speeds
     dx_points, dx_distrib, dx_mean, dx_med, dx_mp, dt_points, dt_distrib, dt_mean, dt_med, dt_mp, vi_points, vi_distrib, vi_mean, vi_med, vi_mp = calculate_instantaneous_statistics(t_matrix, x_matrix, nt)
@@ -1817,8 +1818,6 @@ def sw_nucleo(
             'link_points':link_points, 'link_distrib':link_distrib,
             'link_view':link_view,
             
-            'p':p,
-
             # 't_matrix': t_matrix, 'x_matrix': x_matrix,
 
             'results':results,
@@ -1827,8 +1826,8 @@ def sw_nucleo(
             'vf':vf, 'Cf':Cf, 'wf':wf, 'vf_std':vf_std, 'Cf_std':Cf_std, 'wf_std':wf_std,
 
             'bin_fpt':bin_fpt, 'fpt_distrib_2D':fpt_distrib_2D, 'fpt_number':fpt_number,
-
             'tbj_points':tbj_points, 'tbj_distrib':tbj_distrib,
+            'tau_fb':tau_fb, 'tau_fr':tau_fr, 'tau_rb':tau_rb, 'tau_rr':tau_rr,
 
             'dx_points':dx_points, 'dx_distrib':dx_distrib, 'dx_mean':dx_mean, 'dx_med':dx_med, 'dx_mp':dx_mp, 
             'dt_points':dt_points, 'dt_distrib':dt_distrib, 'dt_mean':dt_mean, 'dt_med':dt_med, 'dt_mp':dt_mp, 
@@ -1855,31 +1854,32 @@ def sw_nucleo(
     print(f"v_th={theoretical_value(alphaf, alphao, s, l, mu, lmbda):.2f}")
 
 
-    # 2. Forward and Reverse steps
-    first_bin = 0
-    last_bin = 20
-    bin_width = 0.10
-    array = np.arange(first_bin, last_bin, bin_width)
-    fb_y, fr_y, rb_y, rr_y = calculate_nature_jump_distribution(t_matrix, x_matrix, first_bin, last_bin, bin_width)
-    tau_fb, tau_fr, tau_rb, tau_rr, y0_fb, y0_fr, y0_rb, y0_rr = extracting_taus(fb_y, fr_y, rb_y, rr_y, array)
+    # # 2. Forward and Reverse steps
+    # first_bin = 0
+    # last_bin = 20
+    # bin_width = 0.10
+    # array = np.arange(first_bin, last_bin, bin_width)
+    # fb_y, fr_y, rb_y, rr_y = calculate_nature_jump_distribution(t_matrix, x_matrix, first_bin, last_bin, bin_width)
+    # tau_fb, tau_fr, tau_rb, tau_rr, y0_fb, y0_fr, y0_rb, y0_rr = extracting_taus(fb_y, fr_y, rb_y, rr_y, array)
 
 
     #  3. Plot 
     plt.figure(figsize=(8,6))
 
-    plt.plot(array, fb_y, label="forward_bind")
-    plt.plot(array, fr_y, label="forward_rest")
-    plt.plot(array, rb_y, label="reverse_bind")
-    plt.plot(array, rr_y, label="reverse_rest")
+    plt.plot(bins, fb_y, label="forward_bind")
+    plt.plot(bins, fr_y, label="forward_rest")
+    plt.plot(bins, rb_y, label="reverse_bind")
+    plt.plot(bins, rr_y, label="reverse_rest")
     
-    plt.plot(array, exp_decay(array, y0_fb, tau_fb), label=f"tau_fb={tau_fb:.2f}", ls="--")
-    plt.plot(array, exp_decay(array, y0_fr, tau_fr), label=f"tau_fr={tau_fr:.2f}", ls="--")
-    plt.plot(array, exp_decay(array, y0_rb, tau_rb), label=f"tau_rb={tau_rb:.2f}", ls="--")
-    plt.plot(array, exp_decay(array, y0_rr, tau_rr), label=f"tau_rr={tau_rr:.2f}", ls="--")
+    plt.plot(bins, exp_decay(bins, y0_fb, tau_fb), label=f"tau_fb={tau_fb:.2f}", ls="--")
+    plt.plot(bins, exp_decay(bins, y0_fr, tau_fr), label=f"tau_fr={tau_fr:.2f}", ls="--")
+    plt.plot(bins, exp_decay(bins, y0_rb, tau_rb), label=f"tau_rb={tau_rb:.2f}", ls="--")
+    plt.plot(bins, exp_decay(bins, y0_rr, tau_rr), label=f"tau_rr={tau_rr:.2f}", ls="--")
 
-    plt.xlim([0,10])
+    plt.xlim([0,20])
     plt.grid(True)
     plt.legend()
+    # plt.show()
     plt.savefig("/home/nicolas/Documents/Workspace/working_on/outputs/output.png")
 
 
@@ -1892,6 +1892,8 @@ def sw_nucleo(
             del locals()[key]
     del data_result 
     gc.collect()
+
+    print("saved here:", os.getcwd())
 
     # Done
     return None
@@ -2240,7 +2242,7 @@ def main():
 # 4.3 : Main launch
 if __name__ == '__main__':
 
-    # Base pairs
+    # Chromatin
     Lmin = 0            # First point of chromatin (included !)
     Lmax = 50_000       # Last point of chromatin (excluded !)
     bps = 1             # Based pair step 1 per 1

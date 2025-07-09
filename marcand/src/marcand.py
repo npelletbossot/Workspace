@@ -1090,7 +1090,7 @@ def calculate_instantaneous_statistics(
 # ================================================
 
 
-def working_environment(folder_path: str) -> None:
+def set_working_environment(base_dir: str = "marcand/outputs", subfolder: str = "") -> None:
     """
     Ensure the specified folder exists and change the current working directory to it.
         Check if the folder exists; if not, create it
@@ -1102,11 +1102,13 @@ def working_environment(folder_path: str) -> None:
     Returns:
         None.
     """
-    if not os.path.exists(folder_path):
-        os.mkdir(folder_path)
-    os.chdir(folder_path)
+    root = os.getcwd()
+    full_path = os.path.join(root, base_dir, subfolder)
+    
+    os.makedirs(full_path, exist_ok=True)
+    os.chdir(full_path)
 
-    return None
+    return full_path
 
 
 def prepare_value(value):
@@ -1227,13 +1229,13 @@ def inspect_data_types(data: dict) -> None:
 # ================================================
 
 
-def sw_marcand(gap, bpmin, alphaf, alphao, alpha_choice, mu, theta, origin, nt, path):
+def sw_marcand(alpha_choice, gap, bpmin, alphaf, alphao, mu, theta, origin, nt, path):
 
 
     # --- Initialization --- #
 
     # File
-    title = f'{alpha_choice}_gap-{int(gap)}_mu-{int(mu)}_theta-{int(theta)}_nt-{nt}'
+    title = f'alphachoice={alpha_choice}_gap={int(gap)}_mu={int(mu)}_theta={int(theta)}_nt={nt}'
     if not os.path.exists(title):
         os.mkdir(title)
 
@@ -1360,10 +1362,10 @@ def choose_configuration(config: str):
     Select the study configuration based on the given configuration identifier.
 
     """
+
     # Fixed parameters
     alphaf = 1
     alphao = 0
-    origin = 0
     alpha_choice_values = ["array"]
 
     # Configurations
@@ -1382,22 +1384,21 @@ def choose_configuration(config: str):
         theta_values = np.array([1, 50, 100+1])
         nt = 100
         path = "mrc_test"
-
         print(os.getcwd())
 
     else:
         raise ValueError(f"Unknown configuration identifier: {config}")
 
-    return gap_values, bpmin_values, alpha_choice_values, mu_values, theta_values, nt, path, alphaf, alphao, origin
+    return alpha_choice_values, gap_values, bpmin_values, mu_values, theta_values, alphaf, alphao, nt, path
 
 
 def process_function(params):
     """
     Defines one process
     """
-    gap, bpmin, alpha_choice, mu, theta, nt, path, alphaf, alphao, origin = params
+    alpha_choice, gap, bpmin, mu, theta, alphaf, alphao, nt, path,  = params
     # logging.debug(f'Processing : s={s}, l={l}, bp_min={bp_min}, alpha_choice={alpha_choice}, k={k}, theta={theta}')
-    sw_marcand(gap, bpmin, alphaf, alphao, alpha_choice, mu, theta, origin, nt, path)
+    sw_marcand(alpha_choice, gap, bpmin, alphaf, alphao, mu, theta, origin, nt, path)
     return None
 
 
@@ -1406,14 +1407,14 @@ def execute_in_parallel(config: str, execution_mode: str) -> None:
     Launches all the process
     """
     # Inputs
-    gap_values, bpmin_values, alpha_choice_values, mu_values, theta_values, nt, path, alphaf, alphao, origin = choose_configuration(config)
+    alpha_choice_values, bpmin_values, gap_values, mu_values, theta_values, alphaf, alphao, nt, path  = choose_configuration(config)
     
     #- Inputs
     params_list = [
-        (gap, bp_min, alpha_choice, mu, theta, nt, path, alphaf, alphao, origin)
-        for gap in gap_values
-        for bp_min in bpmin_values
+        (alpha_choice, bp_min, gap, mu, theta, alphaf, alphao, nt, path,)
         for alpha_choice in alpha_choice_values
+        for bp_min in bpmin_values
+        for gap in gap_values
         for mu in mu_values
         for theta in theta_values
     ]
@@ -1425,10 +1426,12 @@ def execute_in_parallel(config: str, execution_mode: str) -> None:
     params_list_task = params_list[start:end]
 
     #- Environment
-    path_initial = "/marcand/outputs/"
-    folder_path = os.path.join(os.getcwd() + path_initial, f'{path}_{task_id}')
-    working_environment(folder_path)
-    print(os.getcwd())
+    # path_initial = "/marcand/outputs/"
+    # folder_path = os.path.join(os.getcwd() + path_initial, f'{path}_{task_id}')
+    # set_working_environment(folder_path)
+    # print(os.getcwd())
+    folder_name = f"{path}_{task_id}"
+    set_working_environment(subfolder=folder_name)
 
     # Execution modes
     if execution_mode == 'PSMN' :
@@ -1491,6 +1494,9 @@ def main():
 
 # 4.4 : Main launch
 if __name__ == '__main__':
+
+    origin = 0
+
     main()
 
 
