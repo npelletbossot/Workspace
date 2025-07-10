@@ -840,28 +840,33 @@ def gillespie_algorithm_one_step(
 
 # --- Two steps --- #
 def gillespie_algorithm_two_steps(
-    nt: int, tmax: float, dt: float,
-    alpha_matrix: np.ndarray, beta: float, 
-    L: np.ndarray, Lmax: int, origin: int, bps: int, 
+    alpha_matrix: np.ndarray,
     p: np.ndarray,
-    lmbda: float
+    beta: float, 
+    lmbda: float,
+    rtot_bind: float,
+    rtot_rest: float,
+    nt: int, 
+    tmax: float, 
+    dt: float,
+    L: np.ndarray, 
+    origin: int, 
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Simulates stochastic transitions using a two-step Gillespie algorithm.
 
     Args:
+        alpha_matrix (np.ndarray): Matrix of acceptance probabilities.
+        p (np.ndarray): Probability array for transitions.
+        beta (float): Unfolding probability.
+        lmbda (float): Probability to perform a reverse jump after a forward move.
+        rtot_bind (float): Reaction rate for binding events.
+        rtot_rest (float): Reaction rate for resting events.
         nt (int): Number of trajectories to simulate.
         tmax (float): Maximum simulation time.
         dt (float): Time step increment.
-        alpha_matrix (np.ndarray): Matrix representing the acceptance probabilities.
-        beta (float): Probability of unfolding.
         L (np.ndarray): Chromatin structure array.
-        Lmax (int): Maximum allowed chromatin length.
         origin (int): Initial position in the simulation.
-        bps (int): Number of base pairs per chromatin site.
-        p (np.ndarray): Input probability array.
-        lmbda (float) : In vitro behavior of condensin to unbind itself after a forward jump.
-                        Probability to make a reverse jump.
 
     Returns:
         tuple[np.ndarray, np.ndarray, np.ndarray]: 
@@ -891,7 +896,6 @@ def gillespie_algorithm_two_steps(
 
         # Model 
         i0, i = 0, 0
-        rtot_bind, rtot_rest = 2**-1, 10**-1   # Times of reaction
 
         # Initial calibration
         results[_][0] = t                     # Store the initial time
@@ -917,7 +921,7 @@ def gillespie_algorithm_two_steps(
             x += x_jump                             # Whatever happens loop extrusion spends time trying to extrude
 
             # --- Jumping : edge conditions  --- #
-            if x >= (Lmax - origin) :
+            if x >= (np.max(L) - origin) :
                 i = int(np.floor(t/dt))                                         # Last time
                 results[_][i0:int(min(np.floor(tmax/dt),i)+1)] = np.nan         # Last value
                 break
@@ -1112,6 +1116,29 @@ def calculate_position_histogram(results: list, Lmax: int, origin: int, tmax: in
     histograms_array = np.copy(histograms_list).T
 
     return histograms_array
+
+
+def calculate_distribution_of_jump_size(matrix_x: np.ndarray, first_bin: int, last_bin: int, bin_width: float) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Compute the distribution of jump sizes from position data.
+
+    Args:
+        matrix_x: 2D array of positions.
+        first_bin: Lower bound of the histogram.
+        last_bin: Upper bound of the histogram. If None, set to max value.
+        bin_width: Width of histogram bins.
+
+    Returns:
+        Tuple of bin centers and corresponding distribution values.
+    """
+
+    if last_bin is None :
+        last_bin = int(np.nanmax(matrix_x))
+
+    data = np.diff(matrix_x, axis=1)
+    points, distribution = calculate_distribution(data, first_bin, last_bin, bin_width)
+
+    return points, distribution
 
 
 def calculate_distrib_tbjs(matrix_t : np.ndarray, last_bin: float = 1e5):
@@ -1447,6 +1474,7 @@ def set_working_environment(base_dir: str = "nucleo/outputs", subfolder: str = "
 def prepare_value(value):
     """
     Convert various data types to Parquet-compatible formats, including deep handling of NaNs.
+    Do not write in scientific number because it would become string and use more memory.
 
     Args:
         value: The value to be converted.
@@ -1487,7 +1515,7 @@ def prepare_value(value):
         raise ValueError(f"Unsupported data type: {type(value)}")
 
 
-def writing_parquet(file:str, title: str, data_result: dict) -> None:
+def writing_parquet(file:str, title: str, data_result: dict, data_info = False) -> None:
     """
     Write a dictionary directly into a Parquet file using PyArrow.
     Ensures that all numerical values, arrays, and lists are properly handled.
@@ -1515,6 +1543,10 @@ def writing_parquet(file:str, title: str, data_result: dict) -> None:
         ValueError: If a value in the dictionary has an unsupported data type.
         Exception: If writing to the Parquet file fails for any reason.
     """
+
+    # If you need to see the details od the data registered
+    if data_info :
+        inspect_data_types(data_result)
 
     # Define the Parquet file path
     data_file_name = os.path.join(title, f'{file}_{title}.parquet')
@@ -1624,6 +1656,20 @@ def listoflist_into_matrix(listoflist: list) -> np.ndarray:
 
 
 def find_jumps(x_matrix: np.ndarray, t_matrix) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Identifies forward and reverse jump times from position and time matrices.
+
+    Args:
+        x_matrix: 2D array of positions.
+        t_matrix: 2D array of cumulative times.
+
+    Returns:
+        Tuple containing flattened arrays of:
+            - forward bind times
+            - forward rest times
+            - reverse bind times
+            - reverse rest times
+    """
     
     # Getting all the times (non cumulated) from the t_matrix
     time = np.diff(t_matrix, axis=1)
@@ -1665,11 +1711,24 @@ def calculate_nature_jump_distribution(t_matrix: np.ndarray,
                                        bin_width: float
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    fb : forward bind times
-    fr : forward rest times
-    rb : reverse bind times
-    rr : reverse rest times
+    Calculates the binned distributions of forward and reverse bind/rest times.
+
+    Args:
+        t_matrix: 2D array of cumulative times.
+        x_matrix: 2D array of positions.
+        first_bin: Lower bound of histogram bins.
+        last_bin: Upper bound of histogram bins.
+        bin_width: Width of histogram bins.
+
+    Returns:
+        Tuple of distributions:
+            - fb : forward bind times
+            - fr : forward rest times
+            - rb : reverse bind times
+            - rr : reverse rest times
+   
     """
+
     # Get the datas
     t_full = listoflist_into_matrix(t_matrix)
     x_full = listoflist_into_matrix(x_matrix)
@@ -1688,7 +1747,26 @@ def exp_decay(t, y0, tau):
     return y0 * np.exp(-t / tau)
 
 
-def extracting_taus(fb_y: np.ndarray, fr_y: np.ndarray, rb_y: np.ndarray, rr_y: np.ndarray, array: np.ndarray) -> tuple[float, float, float, float, float, float, float, float]:
+def extracting_taus(
+    fb_y: np.ndarray, 
+    fr_y: np.ndarray, 
+    rb_y: np.ndarray, 
+    rr_y: np.ndarray, 
+    array: np.ndarray
+) -> tuple[float, float, float, float, float, float, float, float]:
+    """
+    Fits exponential decay to the given distributions and extracts decay constants and initial values.
+
+    Args:
+        fb_y: Forward bind distribution.
+        fr_y: Forward rest distribution.
+        rb_y: Reverse bind distribution.
+        rr_y: Reverse rest distribution.
+        array: Bin centers or time points.
+
+    Returns:
+        Tuple of decay constants and initial values for all four distributions.
+    """
 
     y0_fb, tau_fb = curve_fit(exp_decay, array, fb_y, p0=(fb_y[0], 1.0))[0]
     y0_fr, tau_fr = curve_fit(exp_decay, array, fr_y, p0=(fr_y[0], 1.0))[0]
@@ -1698,7 +1776,26 @@ def extracting_taus(fb_y: np.ndarray, fr_y: np.ndarray, rb_y: np.ndarray, rr_y: 
     return tau_fb, tau_fr, tau_rb, tau_rr, y0_fb, y0_fr, y0_rb, y0_rr
 
 
-def getting_forwards(t_matrix: np.ndarray, x_matrix: np.ndarray, first_bin: int, last_bin: int, bin_width: float) -> Tuple[np.ndarray, np.ndarray]:
+def getting_forwards(
+    t_matrix: np.ndarray, 
+    x_matrix: np.ndarray, 
+    first_bin: int, 
+    last_bin: int, 
+    bin_width: float
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Calculates the distribution of forward times based on position and time matrices.
+
+    Args:
+        t_matrix: 2D array of cumulative times.
+        x_matrix: 2D array of positions.
+        first_bin: Lower bound of histogram bins.
+        last_bin: Upper bound of histogram bins.
+        bin_width: Width of histogram bins.
+
+    Returns:
+        Tuple of bin centers and forward time distribution.
+    """
 
     # Get the datas
     t_full = listoflist_into_matrix(t_matrix)
@@ -1717,11 +1814,30 @@ def getting_forwards(t_matrix: np.ndarray, x_matrix: np.ndarray, first_bin: int,
     diff = np.diff(result)
     frwd_times = diff[diff > 0]
 
-    points, distrib = calculate_distribution(frwd_times, first_bin, last_bin, bin_width)
-    return points, distrib
+    points, distrib_forwards = calculate_distribution(frwd_times, first_bin, last_bin, bin_width)
+    return points, distrib_forwards
 
 
-def getting_reverses(t_matrix: np.ndarray, x_matrix: np.ndarray, first_bin: int, last_bin: int, bin_width: float) -> Tuple[np.ndarray, np.ndarray]:
+def getting_reverses(
+    t_matrix: np.ndarray, 
+    x_matrix: np.ndarray, 
+    first_bin: int, 
+    last_bin: int, 
+    bin_width: float
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Calculates the distribution of reverse dwell times from position and time matrices.
+
+    Args:
+        t_matrix: 2D array of cumulative times.
+        x_matrix: 2D array of positions.
+        first_bin: Lower bound of histogram bins.
+        last_bin: Upper bound of histogram bins.
+        bin_width: Width of histogram bins.
+
+    Returns:
+        Tuple of bin centers and reverse dwell time distribution.
+    """
 
     # Get the datas
     t_full = listoflist_into_matrix(t_matrix)
@@ -1748,10 +1864,68 @@ def getting_reverses(t_matrix: np.ndarray, x_matrix: np.ndarray, first_bin: int,
     return points, distrib_reverses
 
 
-def find_dwell_times(x_matrix: np.ndarray, t_matrix: np.ndarray):
-    tau_forward = 0
-    tau_reverse = 0
-    return tau_forward, tau_reverse
+def find_dwell_times(
+    points: np.ndarray, 
+    distrib_forwards: np.ndarray, 
+    distrib_reverses: np.ndarray,
+    xmax: float = None
+):
+    """
+    Fits exponential decay models separately to the forward and reverse distributions,
+    automatically choosing the region beyond the distribution maximum.
+
+    Args:
+        points: Bin centers or time points.
+        distrib_forwards: Forward time distribution.
+        distrib_reverses: Reverse time distribution.
+        xmax: Optional maximum bound for fitting.
+
+    Returns:
+        Decay constants and initial values for forward and reverse fits.
+    """
+
+    # Determine automatic xmin for each distribution (after its peak)
+    xmin_forward = points[np.argmax(distrib_forwards)]
+    xmin_reverse = points[np.argmax(distrib_reverses)]
+    # print(f"Selected xmin_forward = {xmin_forward}")
+    # print(f"Selected xmin_reverse = {xmin_reverse}")
+
+    # Apply filtering per distribution
+    mask_forward = (points >= xmin_forward)
+    mask_reverse = (points >= xmin_reverse)
+
+    if xmax is not None:
+        mask_forward &= (points <= xmax)
+        mask_reverse &= (points <= xmax)
+
+    # Filtered data
+    x_fit_fwd = points[mask_forward]
+    y_fit_fwd = distrib_forwards[mask_forward]
+
+    x_fit_rev = points[mask_reverse]
+    y_fit_rev = distrib_reverses[mask_reverse]
+
+    # Check for too few points
+    if len(x_fit_fwd) < 2 or len(x_fit_rev) < 2:
+        raise ValueError("Not enough data points in fitting range. Adjust bins or range.")
+
+    # p0 guess: amplitude ~ first value, tau ~ 10
+    p0_fwd = (y_fit_fwd[0], 10.0)
+    p0_rev = (y_fit_rev[0], 10.0)
+
+    # Fitting
+    def safe_fit(x, y, p0):
+        try:
+            return curve_fit(exp_decay, x, y, p0=p0)[0]
+        except:
+            return np.nan, np.nan
+
+    # Call
+    y0_forwards, tau_forwards = safe_fit(x_fit_fwd, y_fit_fwd, p0_fwd)
+    y0_reverses, tau_reverses = safe_fit(x_fit_rev, y_fit_rev, p0_rev)
+
+    # Return
+    return tau_forwards, tau_reverses, y0_forwards, y0_reverses 
 
 
 # ================================================
@@ -1762,36 +1936,40 @@ def find_dwell_times(x_matrix: np.ndarray, t_matrix: np.ndarray):
 def sw_nucleo(
     alpha_choice: str, s: int, l: int, bpmin: int, 
     mu: float, theta: float, lmbda: float, alphao: float, alphaf: float, beta: float, 
+    rtot_bind: float, rtot_rest: float,
     nt: int,
     path: str,
     Lmin: int, Lmax: int, bps: int, origin: int,
     tmax: float, dt: float, 
     algorithm_choice = "two_steps",
-    saving = True
+    saving = "map"
     ) -> None:
     """
     Simulates condensin dynamics along chromatin with specified parameters.
 
     Args:
         alpha_choice (str): Choice of the alpha configuration ('ntrandom', 'periodic', 'constantmean').
-        s (int): Value of s, nucleosome size.
-        l (int): Value of l, linker length.
+        s (int): Nucleosome size.
+        l (int): Linker length.
         bpmin (int): Minimum base pair threshold.
         mu (float): Mean value for the distribution used in the simulation.
         theta (float): Standard deviation for the distribution used in the simulation.
-        nt (int): Number of trajectories for the simulation.
-        tmax (float): Maximum time for the simulation.
-        dt (float): Time step increment.
-        alphao (float): Probability of beeing accepted on nucleosome sites.
-        alphaf (float): Probability of beeing accepted on linker sites.
+        lmbda (float): Lambda parameter for the simulation.
+        alphao (float): Acceptance probability on nucleosome sites.
+        alphaf (float): Acceptance probability on linker sites.
         beta (float): Unfolding probability.
-        Lmin (int): First point of chromatin.
-        Lmax (int): Last point of chromatin.
+        rtot_bind (float): Reaction rate for binding (inverse of characteristic time).
+        rtot_rest (float): Reaction rate for resting (inverse of characteristic time).
+        nt (int): Number of trajectories to simulate.
+        path (str): Output path for saving results.
+        Lmin (int): First chromatin position.
+        Lmax (int): Last chromatin position.
+        bps (int): Base pairs per site.
         origin (int): Starting position for the simulation.
-        bps (int): Number of base pairs per site.
-        saving (str) : Saving or not.
-        algorithm_choice (str) : Choice of algorithm for the modeling.
-
+        tmax (float): Maximum simulation time.
+        dt (float): Time step increment.
+        algorithm_choice (str): Choice of algorithm for the modeling.
+        saving (bool): Whether to save the results and in which kind.
     Returns:
         None: This function does not return any value. It performs a simulation and saves results in a file.
 
@@ -1803,13 +1981,14 @@ def sw_nucleo(
     # --- Initialization --- #
 
     # File
-    if saving:
-        title = (
-                f'alphachoice={alpha_choice}_s={s}_l={l}_bpmin={bpmin}_'
-                f'mu={mu}_theta={theta}_nt={nt}'
-                )
-        if not os.path.exists(title):
-            os.mkdir(title)
+    title = (
+            f"alphachoice={alpha_choice}_s={s}_l={l}_bpmin={bpmin}_"
+            f"mu={mu}_theta={theta}_"
+            f"lmbda={lmbda:.2e}_rtotbind={rtot_bind:.2e}_rtotrest={rtot_rest:.2e}_"
+            f"nt={nt}"
+            )
+    if not os.path.exists(title):
+        os.mkdir(title)
 
     # Chromatin
     L = np.arange(Lmin, Lmax, bps)
@@ -1820,9 +1999,11 @@ def sw_nucleo(
     alpha_0 = int(1e+0)             # Calibration on linear speed in order to multiplicate speeds by a linear number
     bin_fpt = int(1e+1)             # Bins on times during the all analysis
 
-    # Bins for Forward and Reverse jumps
-    first_bin, last_bin, bin_width = 0, 100, 0.20
-    bins = np.arange(first_bin, last_bin, bin_width)
+    # Bins for Positions and Times : fb (firstbin) - lb (lastbin) - bw (binwidth)
+    x_fb, x_lb, x_bw = 0, 10_000, 1
+    t_fb, t_lb, t_bw = 0, 100, 0.20
+    x_bins = np.arange(x_fb, x_lb, x_bw)
+    t_bins = np.arange(t_fb, t_lb, t_bw)
 
     # --- Simulation --- #
 
@@ -1838,20 +2019,92 @@ def sw_nucleo(
     if algorithm_choice == "one_step":
         results, t_matrix, x_matrix = gillespie_algorithm_one_step(nt, tmax, dt, alpha_matrix, beta, Lmax, lenght, origin, p)
     elif algorithm_choice == "two_steps":
-        results, t_matrix, x_matrix = gillespie_algorithm_two_steps(nt, tmax, dt, alpha_matrix, beta, L, Lmax, origin, bps, p, lmbda)
+        results, t_matrix, x_matrix = gillespie_algorithm_two_steps(alpha_matrix, p, beta, lmbda, rtot_bind, rtot_rest, nt, tmax, dt, L, origin)
 
     # Results
     results_mean, results_med, results_std, v_mean, v_med = calculate_main_results(results, dt, alpha_0, nt)
     vf, Cf, wf, vf_std, Cf_std, wf_std, xt_over_t, G, bound_low, bound_high = fitting_in_two_steps(times, results_mean, results_std)
 
+    # Positions
+    # xbj_points, xbj_distrib = calculate_distribution_of_jump_size(x_matrix, x_fb, x_lb, x_bw)
+
     # Times : First pass times + Waiting times + Forward and Reverse times
     fpt_distrib_2D, fpt_number = calculate_fpt_matrix(t_matrix, x_matrix, tmax, bin_fpt)
     tbj_points, tbj_distrib = calculate_distrib_tbjs(t_matrix)
-    fb_y, fr_y, rb_y, rr_y = calculate_nature_jump_distribution(t_matrix, x_matrix, first_bin, last_bin, bin_width)
-    tau_fb, tau_fr, tau_rb, tau_rr, y0_fb, y0_fr, y0_rb, y0_rr = extracting_taus(fb_y, fr_y, rb_y, rr_y, bins)
 
     # Speeds
     dx_points, dx_distrib, dx_mean, dx_med, dx_mp, dt_points, dt_distrib, dt_mean, dt_med, dt_mp, vi_points, vi_distrib, vi_mean, vi_med, vi_mp = calculate_instantaneous_statistics(t_matrix, x_matrix, nt)
+
+
+    # --------- Working area --------- #
+
+
+    # 2.1 : Forward and Reverse calculation
+    fb_y, fr_y, rb_y, rr_y = calculate_nature_jump_distribution(t_matrix, x_matrix, t_fb, t_lb, t_bw)
+    tau_fb, tau_fr, tau_rb, tau_rr, y0_fb, y0_fr, y0_rb, y0_rr = extracting_taus(fb_y, fr_y, rb_y, rr_y, t_bins)
+
+
+    # 2.2 New Forwards Reverses
+    xf_points, yf_points = getting_forwards(t_matrix, x_matrix, t_fb, t_lb, t_bw)
+    xr_points, yr_points = getting_reverses(t_matrix, x_matrix, t_fb, t_lb, t_bw)
+    tau_forwards, tau_reverses, y0_forwards, y0_reverses = find_dwell_times(xf_points, distrib_forwards=yf_points, distrib_reverses=yr_points, xmax=100)
+
+    # # 2.3 Plot
+    # fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+
+    # ax = axes[0]
+    # ax.plot(t_bins, fb_y, label="forward_bind")
+    # ax.plot(t_bins, fr_y, label="forward_rest")
+    # ax.plot(t_bins, rb_y, label="reverse_bind")
+    # ax.plot(t_bins, rr_y, label="reverse_rest")
+    # ax.plot(t_bins, exp_decay(t_bins, y0_fb, tau_fb), label=f"tau_fb={tau_fb:.2f}", ls="--")
+    # ax.plot(t_bins, exp_decay(t_bins, y0_fr, tau_fr), label=f"tau_fr={tau_fr:.2f}", ls="--")
+    # ax.plot(t_bins, exp_decay(t_bins, y0_rb, tau_rb), label=f"tau_rb={tau_rb:.2f}", ls="--")
+    # ax.plot(t_bins, exp_decay(t_bins, y0_rr, tau_rr), label=f"tau_rr={tau_rr:.2f}", ls="--")
+    # ax.set_xlim([0, 50])
+    # ax.grid(True)
+    # ax.legend()
+    # ax.set_title("Forward vs Reverse by us")
+    # ax.set_xlabel("Bins")
+    # ax.set_ylabel("Density")
+
+    # ax = axes[1]
+    # ax.plot(xf_points, yf_points, label="forward", c="r", lw=0.5)
+    # ax.plot(xr_points, yr_points, label="reverse", c="b", lw=0.5)
+    # ax.plot(xf_points, exp_decay(xf_points, y0_forwards, tau_forwards), label=f"tau_forwards={tau_forwards:.2f}", ls="--", c="r")
+    # ax.plot(xr_points, exp_decay(xr_points, y0_reverses, tau_reverses), label=f"tau_reverses={tau_reverses:.2f}", ls="--", c="b")
+    # ax.grid(True)
+    # ax.legend()
+    # ax.set_title("Forward vs Reverse by Ryu")
+    # ax.set_xlabel("Bins")
+    # ax.set_ylabel("Density")
+
+    # plt.tight_layout()
+    # plt.savefig("/home/nicolas/Documents/Workspace/nucleo/outputs/output.png")
+    # plt.close()
+
+
+    # 1. Speed value in function of lmbda
+    def theoretical_speed(alphaf, alphao, s, l, mu, lmbda, rtot_bind, rtot_rest):
+        p_alpha = (s*alphao + l*alphaf) / (l+s) * (1-lmbda)
+        t_alpha = (1 / rtot_bind) + (1 / rtot_rest)
+        x_alpha = mu
+        return p_alpha / t_alpha * x_alpha
+    
+    # Prints of speed
+    # print(f"v_mean = {v_mean:.2f}")
+
+    v_th = theoretical_speed(alphaf, alphao, s, l, mu, lmbda, rtot_bind, rtot_rest)
+    # print(f"v_th = {v_th:.2f}")
+
+    rtot_bind_fit = ((tau_fb + tau_rb) / 2) ** -1
+    rtot_rest_fit = ((tau_fr + tau_rr) / 2) ** -1
+    v_fit = theoretical_speed(alphaf, alphao, s, l, mu, lmbda, rtot_bind_fit, rtot_rest_fit)
+    # print(f"v_fit = {v_fit:.2f}")
+
+
+    # --------- ------------#
+
 
     # --- Writing --- #
 
@@ -1860,11 +2113,11 @@ def sw_nucleo(
     gc.collect()
 
     # Composing the main result that will be written
-    if saving :
-        data_result = {                                            
-            
+    if saving == "data":
+        data_result = {                                              
             'alpha_choice': alpha_choice, 's': s, 'l': l, 'bpmin': bpmin,                               # parameters
             'mu': mu, 'theta': theta, 'alphao': alphao, 'alphaf': alphaf, 'beta': beta, 'lmbda':lmbda,  # probabilities
+            'rtot_bind': rtot_bind, 'rtot_rest': rtot_rest,                                             # rates
             'Lmin': Lmin, 'Lmax': Lmax, 'bps': bps,'origin': origin,                                    # chromatin
             'tmax': tmax, 'dt': dt,                                                                     # time   
             'nt': nt,                                                                                   # trajectories
@@ -1883,7 +2136,6 @@ def sw_nucleo(
 
             'bin_fpt':bin_fpt, 'fpt_distrib_2D':fpt_distrib_2D, 'fpt_number':fpt_number,
             'tbj_points':tbj_points, 'tbj_distrib':tbj_distrib,
-            'tau_fb':tau_fb, 'tau_fr':tau_fr, 'tau_rb':tau_rb, 'tau_rr':tau_rr,
 
             'dx_points':dx_points, 'dx_distrib':dx_distrib, 'dx_mean':dx_mean, 'dx_med':dx_med, 'dx_mp':dx_mp, 
             'dt_points':dt_points, 'dt_distrib':dt_distrib, 'dt_mean':dt_mean, 'dt_med':dt_med, 'dt_mp':dt_mp, 
@@ -1893,62 +2145,24 @@ def sw_nucleo(
             'xt_over_t':xt_over_t, 'G':G, 'bound_low':bound_low, 'bound_high':bound_high
         }
 
-        # # Types of data registered if needed
-        # inspect_data_types(data_result)
+    elif saving == "map":
+        data_result = {
+            'alpha_choice': alpha_choice, 's': s, 'l': l, 'bpmin': bpmin,                               # parameters
+            'mu': mu, 'theta': theta, 'alphao': alphao, 'alphaf': alphaf, 'beta': beta, 'lmbda':lmbda,  # probabilities
+            'rtot_bind': rtot_bind, 'rtot_rest': rtot_rest,                                             # rates
+            'Lmin': Lmin, 'Lmax': Lmax, 'bps': bps,'origin': origin,                                    # chromatin
+            'tmax': tmax, 'dt': dt,                                                                     # time   
+            'nt': nt,                                                                                   # trajectories
 
-        # Writing event
-        writing_parquet(path, title, data_result)
+            'v_mean': v_mean, 'v_th': v_th, 'v_fit': v_fit,
+            'tau_forwards': tau_forwards, 'tau_reverses': tau_reverses
+        }
 
-
-    # --------- Working area --------- #
-    
-    # 1. Speed value in function of lmbda
-    def theoretical_value(alphaf, alphao, s, l, mu, lmbda):
-        return((s*alphao + l*alphaf) / (l+s) * mu * (1-lmbda))
-    
-    print("v_mean=", v_mean)
-    print(f"v_th={theoretical_value(alphaf, alphao, s, l, mu, lmbda):.2f}")
-
-
-    # # 2. Forward and Reverse steps
-    # first_bin = 0
-    # last_bin = 20
-    # bin_width = 0.10
-    # array = np.arange(first_bin, last_bin, bin_width)
-    # fb_y, fr_y, rb_y, rr_y = calculate_nature_jump_distribution(t_matrix, x_matrix, first_bin, last_bin, bin_width)
-    # tau_fb, tau_fr, tau_rb, tau_rr, y0_fb, y0_fr, y0_rb, y0_rr = extracting_taus(fb_y, fr_y, rb_y, rr_y, array)
+    # Writing cleaning
 
 
-    #  3. Plot 
-    plt.figure(figsize=(8,6))
-    colors = cm.tab10(np.linspace(0, 1, 4))
-
-    plt.plot(bins, fb_y, label="forward_bind", color=colors[0])
-    plt.plot(bins, fr_y, label="forward_rest", color=colors[1])
-    plt.plot(bins, rb_y, label="reverse_bind", color=colors[2])
-    plt.plot(bins, rr_y, label="reverse_rest", color=colors[3])
-    
-    plt.plot(bins, exp_decay(bins, y0_fb, tau_fb), label=f"tau_fb={tau_fb:.2f}", ls="--", color=colors[0])
-    plt.plot(bins, exp_decay(bins, y0_fr, tau_fr), label=f"tau_fr={tau_fr:.2f}", ls="--", color=colors[1])
-    plt.plot(bins, exp_decay(bins, y0_rb, tau_rb), label=f"tau_rb={tau_rb:.2f}", ls="--", color=colors[2])
-    plt.plot(bins, exp_decay(bins, y0_rr, tau_rr), label=f"tau_rr={tau_rr:.2f}", ls="--", color=colors[3])
-
-    plt.xlim([0,50])
-    plt.grid(True)
-    plt.legend()
-    # plt.show()
-    plt.savefig("/home/nicolas/Documents/Workspace/nucleo/outputs/output.png")
-
-    # 4. New Forwards Reverses
-    xf_points, yf_points = getting_forwards(t_matrix, x_matrix, first_bin, last_bin, bin_width)
-    xr_points, yr_points = getting_reverses(t_matrix, x_matrix, first_bin, last_bin, bin_width)
-    plt.figure(figsize=(8,6))
-    plt.plot(xf_points, yf_points)
-    plt.plot(xr_points, yr_points)
-    plt.savefig("/home/nicolas/Documents/Workspace/nucleo/outputs/output_rf.png")
-
-
-    # --------- ------------#
+    # Writing event
+    writing_parquet(path, title, data_result)
 
     # Second cleaning
     for key in list(data_result.keys()):
@@ -2001,8 +2215,8 @@ def checking_inputs(
     - ValueError: If any of the parameter constraints are violated.
     """
 
-    if s != 150:
-        raise ValueError("Invalid value for s: must be 150.")
+    if s != 150 or s != 0:
+        raise ValueError("Invalid value for s: must be 150 or 0.")
 
     if l > s:
         raise ValueError(f"Invalid value for l: got l={l} but s={s}, and l must be ≤ s.")
@@ -2082,7 +2296,13 @@ def choose_configuration(config: str):
     alphao = 0          # Probability of beeing rejected
     alphaf = 1          # Probability of beeing accepted
     beta = 0            # Probability of beeing stall
-    lmbda = 0.30        # Probability of in vitro behavior to be rejected
+    lmbda = 0.35        # Probability of in vitro behavior to be rejected
+    rtot_bind = 1/1     # Reaction rate of binding
+    rtot_rest = 1/4     # Reaction rate of resting
+
+    # For lisibility
+    rtot_bind = np.round(rtot_bind, 2)
+    rtot_rest = np.round(rtot_rest, 2)
 
     # Configurations
     if config == 'NU':
@@ -2094,6 +2314,7 @@ def choose_configuration(config: str):
         theta_values = np.arange(1, 101, 1)
         nt = 10_000
         path = 'ncl_nu'
+
     elif config == 'BP':
         alpha_choice_values = ['ntrandom']       
         s_values = np.array([150])
@@ -2103,6 +2324,7 @@ def choose_configuration(config: str):
         theta_values = np.arange(1, 101, 1)
         nt = 10_000
         path = 'ncl_bp'   
+
     elif config == 'LSLOW':
         alpha_choice_values = ['ntrandom']
         s_values = np.array([150])
@@ -2112,6 +2334,7 @@ def choose_configuration(config: str):
         theta_values = np.arange(1, 101, 1)
         nt = 10_000
         path = 'ncl_lslow'
+
     elif config == 'LSHIGH':
         alpha_choice_values = ['ntrandom']
         s_values = np.array([150])
@@ -2121,11 +2344,12 @@ def choose_configuration(config: str):
         theta_values = np.arange(1, 101, 1)
         nt = 10_000
         path = 'ncl_lshigh' 
+
     elif config == 'TEST':
         alpha_choice_values = ['constantmean']
         # alpha_choice_values = ['periodic', 'ntrandom', 'constantmean']
-        s_values = np.array([150])
-        l_values = np.array([10])
+        s_values = np.array([75])
+        l_values = np.array([150])
         bpmin_values = np.array([5])
         mu_values = np.array([300])
         # mu_values = np.array([100,200,300,400,500,600])
@@ -2133,14 +2357,27 @@ def choose_configuration(config: str):
         # theta_values = np.array([1,50,100])
         nt = 10_000
         path = 'ncl_test'
-     
-    # Done
+
+    elif config == 'MAP':
+        alpha_choice_values = ['constantmean']
+        s_values = np.array([0])
+        l_values = np.array([150])
+        bpmin_values = np.array([0])
+        mu_values = np.array([300])
+        theta_values = np.array([50])
+        nt = 1_000
+        path = 'ncl_map' 
+        rtot_bind = np.arange(0.010, 10, 0.10)
+        rtot_rest = np.arange(0.010, 10, 0.10)
+
     else:
         raise ValueError(f"Unknown configuration identifier: {config}")
-    return (alpha_choice_values, s_values, l_values, bpmin_values,  # parameters
-            mu_values, theta_values, lmbda, alphao, alphaf, beta,   # probabilities      
-            nt,                                                     # trajectories
-            path)                                                   # folder
+    
+    return (alpha_choice_values, s_values, l_values, bpmin_values,      # parameters
+            mu_values, theta_values, lmbda, alphao, alphaf, beta,       # probabilities
+            rtot_bind, rtot_rest,                                       # rates   
+            nt,                                                         # trajectories
+            path)                                                       # folder
 
 
 def process_function(params: tuple) -> None:
@@ -2163,20 +2400,17 @@ def process_function(params: tuple) -> None:
         - The function assumes that `sw_nucleo` is defined elsewhere in the code and takes the listed parameters.
     """
     # Unpack parameters from the input tuple
-    alpha_choice, s, l, bpmin, mu, theta, lmbda, alphao, alphaf, beta, nt, path = params
+    alpha_choice, s, l, bpmin, mu, theta, lmbda, alphao, alphaf, beta, rtot_bind, rtot_rest, nt, path = params
 
     # # Getting the verification on inputs
-    # checking_inputs(
-    # s=s, l=l, bpmin=bpmin,
-    # alphao=alphao, alphaf=alphaf,
-    # Lmin=Lmin, Lmax=Lmax, bps=bps, L=L,
+    # checking_inputs(s=s, l=l, bpmin=bpmin, alphao=alphao, alphaf=alphaf, Lmin=Lmin, Lmax=Lmax, bps=bps, L=L,
     # nt=nt, mu=mu, theta=theta,
     # tmax=tmax, dt=dt, origin=origin,
     # alpha_choice=alpha_choice
     # )
 
     # Call the `sw_nucleo` function with the given parameters
-    sw_nucleo(alpha_choice, s, l, bpmin, mu, theta, lmbda, alphao, alphaf, beta, nt, path, Lmin, Lmax, bps, origin, tmax, dt)
+    sw_nucleo(alpha_choice, s, l, bpmin, mu, theta, lmbda, alphao, alphaf, beta, rtot_bind, rtot_rest, nt, path, Lmin, Lmax, bps, origin, tmax, dt)
 
     return None
 
@@ -2207,17 +2441,19 @@ def execute_in_parallel(config: str, execution_mode: str) -> None:
         Exception: Captures and logs any exceptions raised during process execution.
     """
     # Inputs
-    alpha_choice_values, s_values, l_values, bpmin_values, mu_values, theta_values, lmbda, alphao, alphaf, beta, nt, path = choose_configuration(config)
+    alpha_choice_values, s_values, l_values, bpmin_values, mu_values, theta_values, lmbda, alphao, alphaf, beta, rtot_bind, rtot_rest, nt, path = choose_configuration(config)
 
     # Generate the list of parameters for all combinations
     params_list = [
-        (alpha_choice, s, l, bpmin, mu, theta, lmbda, alphao, alphaf, beta, nt, path)
+        (alpha_choice, s, l, bpmin, mu, theta, lmbda, alphao, alphaf, beta, rtot_b, rtot_r, nt, path)
         for alpha_choice in alpha_choice_values
         for s in s_values
         for l in l_values
         for bpmin in bpmin_values
         for mu in mu_values
         for theta in theta_values
+        for rtot_b in rtot_bind
+        for rtot_r in rtot_rest
     ]
 
     # Divide the parameter list into chunks for parallel execution
@@ -2249,7 +2485,7 @@ def execute_in_parallel(config: str, execution_mode: str) -> None:
     # Execution locally on PC -> /home/nicolas/Documents/Progs/
     if execution_mode == 'PC':
         # num_processes = 2
-        num_processes = 10
+        num_processes = 12
 
         with ProcessPoolExecutor(max_workers=num_processes) as executor:
             futures = {executor.submit(process_function, params): params for params in params_list}
@@ -2288,8 +2524,8 @@ def main():
     start_time = time.time()
     initial_adress = Path.cwd()
 
-    config = 'TEST'     # NU / BP / LSLOW / LSHIGH / TEST
-    exe = 'PC'              # PSMN / PC / SNAKEVIZ
+    config = 'MAP'      # NU / BP / LSLOW / LSHIGH / TEST / MAP
+    exe = 'PC'          # PSMN / PC / SNAKEVIZ
 
     try:
         execute_in_parallel(config, exe)
