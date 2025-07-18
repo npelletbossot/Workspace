@@ -759,7 +759,7 @@ def calculate_main_results_marcand(
     alpha_matrix: np.ndarray,
     x_max: int,
     x_min: int,
-    results_wo: np.ndarray,
+    mu: float,
     plot_results: bool = False
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float, np.ndarray]:
     """
@@ -786,7 +786,6 @@ def calculate_main_results_marcand(
     
     # Set FPT at origin to 0 for all trajectories
     results[:, 0] = 0
-    results_wo[:, 0] = 0
 
     # Extract normalized obstacle profile from alpha
     obs_profile = alpha_matrix[0, int(x_min):int(x_max)]
@@ -805,22 +804,28 @@ def calculate_main_results_marcand(
     p_tau = 1 - np.cumsum(fpt_xmax_distribution)
 
     # 5. Effective velocity (mean slope over obstacle region)
-    obstacle_length = x_max - x_min
-    random_pos = np.random.randint(int(x_min / 4), int(x_min / 2) + 1)
-    lower_bound = random_pos - obstacle_length
-    upper_bound = random_pos + obstacle_length
+    v_th = 1 / mu
+    fpt_wo_xmin = v_th * x_min
+    fpt_wo_xmax = v_th * x_max
+    fpt_mean_xmax = fpt_mean[int(x_max)]
+    v_marcand = (fpt_mean_xmax - fpt_wo_xmin) / (fpt_wo_xmax - fpt_wo_xmin)
 
-    baseline_slope = linear_fit(
-        values=fpt_mean,
-        time_step=1,
-        start_index=lower_bound,
-        end_index=upper_bound
-    )
+    # obstacle_length = x_max - x_min
+    # random_pos = np.random.randint(int(x_min / 4), int(x_min / 2) + 1)
+    # lower_bound = random_pos - obstacle_length
+    # upper_bound = random_pos + obstacle_length
+    # baseline_slope = linear_fit(
+    #     values=fpt_mean,
+    #     time_step=1,
+    #     start_index=lower_bound,
+    #     end_index=upper_bound
+    # )
+    # v_marcand = (fpt_mean[int(x_max)] - fpt_mean[int(x_min)]) / baseline_slope
 
-    v_marcand = (fpt_mean[int(x_max)] - fpt_mean[int(x_min)]) / baseline_slope
 
     # 6. Delay: how much the obstacle slows things down
-    delay = fpt_mean - np.nanmean(results_wo, axis=0)
+    # delay = fpt_mean - np.nanmean(results_wo, axis=0)
+    delay = fpt_mean - np.mean(v_th * np.arange(0, len(results[0]), 1), axis=0)
 
     # -------------------- Optional plots -------------------- #
     if plot_results:
@@ -1282,16 +1287,13 @@ def sw_marcand(alpha_choice, gap, bpmin, alphaf, alphao, mu, theta, origin, nt, 
     obs_points, obs_distrib, link_points, link_distrib = calculate_obs_and_linker_distribution(alpha_matrix[0], alphao, alphaf)
 
     # Probabilities
-    p = proba_gamma(theta, mu, L)
+    p = proba_gamma(mu, theta, L)
 
     # Modelling
     results, t_matrix, x_matrix, tmax  = gillespie_algorithm_in_position(total_lenght, l_max, x_max, origin, alpha_matrix, p, beta, nt)
 
-    # wo : without obstacles
-    alpha_matrix_wo = calculate_landscape(alpha_choice, alphaf, d, D, 1, gap, rap1_l, lacO_l, N, bpmin, nt)
-    results_wo, _, _, _ = gillespie_algorithm_in_position(total_lenght, l_max, x_max, origin, alpha_matrix_wo, p, beta, nt)
-    # analysis
-    fpt_mean, fpt_2D, fpt_x_max_distrib, p_tau, v_marcand, delay = calculate_main_results_marcand(results, alpha_matrix, x_max, x_min, results_wo)
+    # Results
+    fpt_mean, fpt_2D, fpt_x_max_distrib, p_tau, v_marcand, delay = calculate_main_results_marcand(results, alpha_matrix, x_max, x_min, mu)
 
     # Times
     fpt_distrib_2D, fpt_number = calculate_fpt_matrix(t_matrix, x_matrix, tmax=tf, t_bin=bin_fpt, nt=nt)
@@ -1378,11 +1380,14 @@ def choose_configuration(config: str):
         path = "mrc_data"
         
     elif config == "TEST":
-        gap_values = np.array([5, 35])
+        # gap_values = np.array([5, 35])
+        gap_values = np.array([35])
         bpmin_values = np.array([0])
-        mu_values = np.array([1, 100, 200+1])
-        theta_values = np.array([1, 50, 100+1])
-        nt = 100
+        # mu_values = np.array([1, 100, 200+1])
+        mu_values = np.array([100])
+        # theta_values = np.array([1, 50, 100+1])
+        theta_values = np.array([50])
+        nt = 10_000
         path = "mrc_test"
         print(os.getcwd())
 
@@ -1478,7 +1483,7 @@ def main():
     start_time = time.time()
     initial_adress = Path.cwd()
 
-    config = 'TEST'         # DATA / TEST
+    config = 'DATA'         # DATA / TEST
     exe = 'PC'              # PSMN / PC / SNAKEVIZ
 
     try:

@@ -944,24 +944,20 @@ def gillespie_algorithm_two_steps(
             t_list.append(t)
             x_list.append(x-ox)
       
-            # Binding : Loop Extrusion (LE) occurs or not
+            # Binding : Loop Extrusion does occur - it will have to rest
             if r0_bind < r_bind * (1-lmbda):
                 LE = True
+                t_rest = - np.log(np.random.rand())/rtot_rest
+
+                if np.isinf(t_rest) == True:
+                    t_rest = 1e308
+
+                t += t_rest
+
+            # Binding : Loop Extrusion does not occur - it will not have to rest
             else : 
                 LE = False
                 x = prev_x
-
-            # --- Resting after an attempt --- #
-
-            t_rest = - np.log(np.random.rand())/rtot_rest       # Random time of resting after an attempt
-
-            # Condition on time for resting
-            if np.isinf(t_rest) == True:
-                t = 1e308
-
-            t += t_rest
-
-            # --- Datas --- #
 
             # Acquisition 2
             t_list.append(t)
@@ -2073,6 +2069,7 @@ def sw_nucleo(
     # ax.plot(xr_points, yr_points, label="reverse", c="b", lw=0.5)
     # ax.plot(xf_points, exp_decay(xf_points, y0_forwards, tau_forwards), label=f"tau_forwards={tau_forwards:.2f}", ls="--", c="r")
     # ax.plot(xr_points, exp_decay(xr_points, y0_reverses, tau_reverses), label=f"tau_reverses={tau_reverses:.2f}", ls="--", c="b")
+    # ax.set_xlim([0,50])
     # ax.grid(True)
     # ax.legend()
     # ax.set_title("Forward vs Reverse by Ryu")
@@ -2091,16 +2088,19 @@ def sw_nucleo(
         x_alpha = mu
         return p_alpha / t_alpha * x_alpha
     
-    # Prints of speed
-    # print(f"v_mean = {v_mean:.2f}")
-
     v_th = theoretical_speed(alphaf, alphao, s, l, mu, lmbda, rtot_bind, rtot_rest)
-    # print(f"v_th = {v_th:.2f}")
 
     rtot_bind_fit = ((tau_fb + tau_rb) / 2) ** -1
     rtot_rest_fit = ((tau_fr + tau_rr) / 2) ** -1
     v_fit = theoretical_speed(alphaf, alphao, s, l, mu, lmbda, rtot_bind_fit, rtot_rest_fit)
+
+    # # Prints of speed
+    # print(f"v_mean = {v_mean:.2f}")
+    # print(f"v_th = {v_th:.2f}")
     # print(f"v_fit = {v_fit:.2f}")
+
+    print(x_matrix[0])
+    print(t_matrix[0])
 
 
     # --------- ------------#
@@ -2158,9 +2158,6 @@ def sw_nucleo(
             'tau_forwards': tau_forwards, 'tau_reverses': tau_reverses
         }
 
-    # Writing cleaning
-
-
     # Writing event
     writing_parquet(path, title, data_result)
 
@@ -2182,12 +2179,11 @@ def sw_nucleo(
 
 
 def checking_inputs(
-    s, l, bpmin,
-    alphao, alphaf,
-    Lmin, Lmax, bps, L,
-    nt, mu, theta,
-    tmax, dt, origin,
-    alpha_choice
+    alpha_choice, s, l, bpmin, 
+    mu, theta, lmbda, alphao, alphaf, beta,
+    nt,
+    Lmin, Lmax, bps, origin,
+    tmax, dt
 ):
     """
     Checks the validity of input parameters for the simulation.
@@ -2215,53 +2211,42 @@ def checking_inputs(
     - ValueError: If any of the parameter constraints are violated.
     """
 
-    if s != 150 or s != 0:
-        raise ValueError("Invalid value for s: must be 150 or 0.")
-
-    if l > s:
-        raise ValueError(f"Invalid value for l: got l={l} but s={s}, and l must be ≤ s.")
-
-    if bpmin > 15:
-        raise ValueError(f"Invalid value for bpmin: {bpmin}. Must be ≤ 10.")
-
-    for name, alpha in zip(["alphao", "alphaf"], [alphao, alphaf]):
-        if not (0 <= alpha <= 1):
-            raise ValueError(f"{name} must be between 0 and 1. Got {alpha}.")
-
-    if Lmin != 0:
-        raise ValueError(f"Lmin must be 0. Got {Lmin}.")
-
-    if Lmax <= Lmin:
-        raise ValueError(f"Lmax must be greater than Lmin. Got Lmax={Lmax}, Lmin={Lmin}.")
-
-    if bps <= 0:
-        raise ValueError(f"bps must be positive. Got {bps}.")
-
-    expected_length = (Lmax - Lmin) // bps
-    if len(L) != expected_length:
-        raise ValueError(f"L must cover the range from Lmin to Lmax with step bps. Got len(L)={len(L)}, expected {expected_length}.")
-
-    if nt <= 0:
-        raise ValueError(f"nt must be positive. Got {nt}.")
-
-    if mu <= 0:
-        raise ValueError(f"mu must be positive. Got {mu}.")
-
-    if theta < 0:
-        raise ValueError(f"theta must be non-negative. Got {theta}.")
-
-    if tmax <= 0:
-        raise ValueError(f"tmax must be positive. Got {tmax}.")
-
-    if dt <= 0:
-        raise ValueError(f"dt must be positive. Got {dt}.")
-
-    if not (0 <= origin < Lmax):
-        raise ValueError(f"origin must be within [0, Lmax). Got origin={origin}, Lmax={Lmax}.")
-
+    # Obstacles
     if alpha_choice not in {"constantmean", "periodic", "ntrandom"}:
         raise ValueError(f"Invalid alpha_choice: {alpha_choice}. Must be 'constantmean', 'periodic', or 'ntrandom'.")
+    for name, value in [("s", s), ("l", l), ("bpmin", bpmin)]:
+        if not isinstance(value, np.integer) or value < 0:
+            raise ValueError(f"Invalid value for {name}: must be an int >= 0. Got {value}.")
 
+    # Probabilities
+    if not isinstance(mu, np.integer) or mu < 0:
+        raise ValueError(f"Invalid value for mu: must be an int >= 0. Got {mu}.")
+    if not isinstance(theta, np.integer) or theta < 0:
+        raise ValueError(f"Invalid value for theta: must be an int >= 0. Got {theta}.")
+    for name, value in zip(["lmbda", "alphao", "alphaf", "beta"], [lmbda, alphao, alphaf, beta]):
+        if not (0 <= value <= 1):
+            raise ValueError(f"{name} must be between 0 and 1. Got {value}.")
+
+    # Chromatin
+    if Lmin != 0:
+        raise ValueError(f"Lmin must be 0. Got {Lmin}.")
+    if Lmax <= Lmin:
+        raise ValueError(f"Lmax must be greater than Lmin. Got Lmax={Lmax}, Lmin={Lmin}.")
+    if not isinstance(bps, int) or bps < 0:
+        raise ValueError(f"Invalid value for bps: must be an int >= 0. Got {bps}.")
+    if not (0 <= origin < Lmax):
+        raise ValueError(f"origin must be within [0, Lmax). Got origin={origin}, Lmax={Lmax}.")
+    
+    # Trajectories
+    if not isinstance(nt, int) or nt < 0:
+        raise ValueError(f"Invalid value for nt: must be an int >= 0. Got {nt}.")
+
+    # Times
+    if not isinstance(tmax, int) or tmax < 0:
+        raise ValueError(f"Invalid value for tmax: must be an int >= 0. Got {tmax}.")
+    if dt <= 0:
+        raise ValueError(f"dt must be positive. Got {dt}.")
+    
 
 # ================================================
 # Part 3.3 : Multiprocessing functions
@@ -2296,13 +2281,19 @@ def choose_configuration(config: str):
     alphao = 0          # Probability of beeing rejected
     alphaf = 1          # Probability of beeing accepted
     beta = 0            # Probability of beeing stall
-    lmbda = 0.35        # Probability of in vitro behavior to be rejected
-    rtot_bind = 1/1     # Reaction rate of binding
-    rtot_rest = 1/4     # Reaction rate of resting
 
-    # For lisibility
-    rtot_bind = np.round(rtot_bind, 2)
-    rtot_rest = np.round(rtot_rest, 2)
+    # Working on
+    lmbda = np.arange(0.10, 0.90, 0.20)        # Probability of in vitro behavior to be rejected
+    tau_min = 0.10
+    tau_max = 20
+    n_points = 100
+    tau_linear = np.linspace(tau_min, tau_max, n_points)
+    r_for_linear = 1 / tau_linear
+    rtot_bind = r_for_linear       # Reaction rate of binding
+    rtot_rest = r_for_linear       # Reaction rate of resting
+
+    lmbda = np.array([0.20])
+    rtot_bind, rtot_rest = np.array([1/6]), np.array([1/6])
 
     # Configurations
     if config == 'NU':
@@ -2355,7 +2346,7 @@ def choose_configuration(config: str):
         # mu_values = np.array([100,200,300,400,500,600])
         theta_values = np.array([50])
         # theta_values = np.array([1,50,100])
-        nt = 10_000
+        nt = 2
         path = 'ncl_test'
 
     elif config == 'MAP':
@@ -2367,8 +2358,6 @@ def choose_configuration(config: str):
         theta_values = np.array([50])
         nt = 1_000
         path = 'ncl_map' 
-        rtot_bind = np.arange(0.010, 10, 0.10)
-        rtot_rest = np.arange(0.010, 10, 0.10)
 
     else:
         raise ValueError(f"Unknown configuration identifier: {config}")
@@ -2402,12 +2391,14 @@ def process_function(params: tuple) -> None:
     # Unpack parameters from the input tuple
     alpha_choice, s, l, bpmin, mu, theta, lmbda, alphao, alphaf, beta, rtot_bind, rtot_rest, nt, path = params
 
-    # # Getting the verification on inputs
-    # checking_inputs(s=s, l=l, bpmin=bpmin, alphao=alphao, alphaf=alphaf, Lmin=Lmin, Lmax=Lmax, bps=bps, L=L,
-    # nt=nt, mu=mu, theta=theta,
-    # tmax=tmax, dt=dt, origin=origin,
-    # alpha_choice=alpha_choice
-    # )
+    # Getting the verification on inputs
+    checking_inputs(
+        alpha_choice=alpha_choice, s=s, l=l, bpmin=bpmin, 
+        mu=mu, theta=theta, lmbda=lmbda, alphao=alphao, alphaf=alphaf, beta=beta,
+        nt=nt,
+        Lmin=Lmin, Lmax=Lmax, bps=bps, origin=origin,
+        tmax=tmax, dt=dt
+    )
 
     # Call the `sw_nucleo` function with the given parameters
     sw_nucleo(alpha_choice, s, l, bpmin, mu, theta, lmbda, alphao, alphaf, beta, rtot_bind, rtot_rest, nt, path, Lmin, Lmax, bps, origin, tmax, dt)
@@ -2441,19 +2432,20 @@ def execute_in_parallel(config: str, execution_mode: str) -> None:
         Exception: Captures and logs any exceptions raised during process execution.
     """
     # Inputs
-    alpha_choice_values, s_values, l_values, bpmin_values, mu_values, theta_values, lmbda, alphao, alphaf, beta, rtot_bind, rtot_rest, nt, path = choose_configuration(config)
+    alpha_choice_values, s_values, l_values, bpmin_values, mu_values, theta_values, lmbda_values, alphao, alphaf, beta, rtot_bind_values, rtot_rest_values, nt, path = choose_configuration(config)
 
     # Generate the list of parameters for all combinations
     params_list = [
-        (alpha_choice, s, l, bpmin, mu, theta, lmbda, alphao, alphaf, beta, rtot_b, rtot_r, nt, path)
+        (alpha_choice, s, l, bpmin, mu, theta, lmbda, alphao, alphaf, beta, rtot_bind, rtot_rest, nt, path)
         for alpha_choice in alpha_choice_values
         for s in s_values
         for l in l_values
         for bpmin in bpmin_values
         for mu in mu_values
         for theta in theta_values
-        for rtot_b in rtot_bind
-        for rtot_r in rtot_rest
+        for lmbda in lmbda_values
+        for rtot_bind in rtot_bind_values
+        for rtot_rest in rtot_rest_values
     ]
 
     # Divide the parameter list into chunks for parallel execution
@@ -2524,7 +2516,7 @@ def main():
     start_time = time.time()
     initial_adress = Path.cwd()
 
-    config = 'MAP'      # NU / BP / LSLOW / LSHIGH / TEST / MAP
+    config = 'TEST'      # NU / BP / LSLOW / LSHIGH / TEST / MAP
     exe = 'PC'          # PSMN / PC / SNAKEVIZ
 
     try:
