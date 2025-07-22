@@ -16,9 +16,10 @@ import logging
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from itertools import groupby
+from itertools import groupby, product
 from collections import Counter
 from typing import Callable, Tuple, List, Dict, Optional
+from functools import partial
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
 
@@ -112,6 +113,9 @@ def calculate_distribution(
             - distrib (np.ndarray): Normalized distribution (sum equals 1).
     """
 
+    # # Remove NaN values
+    # data = data[~np.isnan(data)]
+
     # Handle empty data array
     if data.size == 0: 
         return np.array([]), np.array([])
@@ -157,6 +161,25 @@ def linear_fit(array: np.ndarray, step: float) -> float:
 
     slope, _, _, _ = np.linalg.lstsq(x, valid_array, rcond=None)
     return slope[0]
+
+
+def exp_decay(t, y0, tau):
+    return y0 * np.exp(-t / tau)
+
+
+# 2.1.3 : Datas
+
+
+def listoflist_into_matrix(listoflist: list) -> np.ndarray:
+    """
+    Converts a list of lists with varying lengths into a 2D NumPy array,
+    padding shorter rows with np.nan so that all rows have equal length.
+    """
+    len_max = max(len(row) for row in listoflist)
+    matrix = np.full((len(listoflist), len_max), np.nan)
+    for i, row in enumerate(listoflist):
+        matrix[i, :len(row)] = row
+    return matrix
 
 
 # ================================================
@@ -976,6 +999,13 @@ def gillespie_algorithm_two_steps(
     return results, t_matrix, x_matrix
 
 
+def theoretical_speed(alphaf, alphao, s, l, mu, lmbda, rtot_bind, rtot_rest):
+        p_alpha = (s*alphao + l*alphaf) / (l+s) * (1-lmbda)
+        t_alpha = (1 / rtot_bind) + (1 / rtot_rest)
+        x_alpha = mu
+        return p_alpha / t_alpha * x_alpha
+
+
 # ================================================
 # Part 2.5 : Analysis calculation functions
 # ================================================
@@ -1114,12 +1144,12 @@ def calculate_position_histogram(results: list, Lmax: int, origin: int, tmax: in
     return histograms_array
 
 
-def calculate_distribution_of_jump_size(matrix_x: np.ndarray, first_bin: int, last_bin: int, bin_width: float) -> Tuple[np.ndarray, np.ndarray]:
+def calculate_jumpsize_distribution(x_matrix: np.ndarray, first_bin: int, last_bin: int, bin_width: float) -> Tuple[np.ndarray, np.ndarray]:
     """
     Compute the distribution of jump sizes from position data.
 
     Args:
-        matrix_x: 2D array of positions.
+        x_matrix: 2D array of positions.
         first_bin: Lower bound of the histogram.
         last_bin: Upper bound of the histogram. If None, set to max value.
         bin_width: Width of histogram bins.
@@ -1128,20 +1158,18 @@ def calculate_distribution_of_jump_size(matrix_x: np.ndarray, first_bin: int, la
         Tuple of bin centers and corresponding distribution values.
     """
 
-    if last_bin is None :
-        last_bin = int(np.nanmax(matrix_x))
-
-    data = np.diff(matrix_x, axis=1)
+    data = np.diff(x_matrix, axis=1)
+    data = data[~np.isnan(data)]
     points, distribution = calculate_distribution(data, first_bin, last_bin, bin_width)
 
     return points, distribution
 
 
-def calculate_distrib_tbjs(matrix_t : np.ndarray, last_bin: float = 1e5):
+def calculate_timejump_distribution(t_matrix : np.ndarray, last_bin: float = 1e5):
     """Calculate the distribution of times between jumps : tbj
 
     Args:
-        matrix_t (list of lists): List of time steps for all trajectories.
+        t_matrix (list of lists): List of time steps for all trajectories.
         tmax (int): Maximum time value for the simulation.
 
 
@@ -1158,8 +1186,8 @@ def calculate_distrib_tbjs(matrix_t : np.ndarray, last_bin: float = 1e5):
     # Define bins
     tbj_bins = np.arange(0, last_bin + 1, 1)
 
-    # Flatten matrix_t and compute time differences
-    tbj_list = np.diff(np.concatenate(matrix_t))               # Differences between jumps
+    # Flatten t_matrix and compute time differences
+    tbj_list = np.diff(np.concatenate(t_matrix))               # Differences between jumps
 
     # Create histogram
     tbj_distrib, _ = np.histogram(tbj_list, bins=tbj_bins)     # Compute histogram
@@ -1174,54 +1202,112 @@ def calculate_distrib_tbjs(matrix_t : np.ndarray, last_bin: float = 1e5):
     return tbj_bins[:-1], tbj_distrib
 
 
-def calculate_fpt_matrix(matrix_t: np.ndarray, matrix_x: np.ndarray, tmax: int, t_bin: int) -> tuple[np.ndarray, np.ndarray] :
+def calculate_fpt_matrix(t_matrix: np.ndarray, x_matrix: np.ndarray, tmax: int, t_bin: int) -> tuple[np.ndarray, np.ndarray]:
     """
-    Calculate the first passage time (FPT) density using bins to reduce memory usage.
-    Positions are grouped into bins of 'bin_size'.
+    Calculate the first passage time (FPT) density using binning.
+    Uses a 2D ndarray with NaNs for padding to handle non-uniform trajectories.
 
     Args:
-        matrix_t (np.ndarray): All times.
-        matrix_x (np.ndarray): All positions.
-        tmax (int): Time maximum.
-        bin_size (int): Bin size of time.
-        rf (int): Rounding Factor.
-
+        t_matrix (np.ndarray): 2D array (nt, steps) of time values (with np.nan for missing values).
+        x_matrix (np.ndarray): 2D array (nt, steps) of position values (same shape as t_matrix).
+        tmax (int): Maximum time considered (clipped at this value).
+        t_bin (int): Bin size for the position space.
 
     Returns:
-        tuple: 
-            - fpt_results (np.ndarray): Matrix of density of first pass times.
-            - fpt_number (np.ndarray): Number of trajectories that reached the positions.
+        tuple:
+            - fpt_results (np.ndarray): Matrix of normalized FPT densities per bin and time.
+            - fpt_number (np.ndarray): Number of trajectories reaching each bin at least once.
     """
-    
-    x_max = np.max(np.concatenate(matrix_x))
+
+    # Replace all values beyond tmax or nan with np.nan (just in case)
+    t_matrix = np.where(t_matrix > tmax, np.nan, t_matrix)
+
+    # Determine binning on x
+    valid_x = x_matrix[~np.isnan(x_matrix)]
+    x_max = np.max(valid_x)
     n_bins = math.ceil(x_max / t_bin)
     fpt_matrix = np.zeros((tmax + 1, n_bins))
-    nt = len(matrix_t)
+    nt = x_matrix.shape[0]
 
-    translated_all_x = [[x - sublist[0] for x in sublist] for sublist in matrix_x]
+    # Translate all trajectories so they start at 0
+    start_positions = x_matrix[:, 0][:, np.newaxis]
+    translated_x = x_matrix - start_positions
 
-    # I : matrix
-    couples = np.concatenate([list(zip(x, [min(math.floor(ti), tmax) for ti in t])) for x, t in zip(translated_all_x, matrix_t)])
+    # Loop over trajectories
+    for traj_x, traj_t in zip(translated_x, t_matrix):
+        valid = ~np.isnan(traj_x) & ~np.isnan(traj_t)
+        x_vals = traj_x[valid]
+        t_vals = np.floor(traj_t[valid]).astype(int)
+        t_vals = np.clip(t_vals, 0, tmax)
 
-    for _ in range(len(couples)):
-        if couples[_][0] != 0:
-            bin_index_start = couples[_ - 1][0] // t_bin
-            bin_index_end = couples[_][0] // t_bin
-            fpt_matrix[couples[_][1]][bin_index_start:bin_index_end ] += 1
+        for i in range(1, len(x_vals)):
+            x_prev_bin = int(x_vals[i - 1] // t_bin)
+            x_curr_bin = int(x_vals[i] // t_bin)
+            t_idx = t_vals[i]
+            if x_vals[i] != 0:
+                fpt_matrix[t_idx, x_prev_bin:x_curr_bin] += 1
 
-    # II : curve
+    # Count trajectories that never reached each bin
     fpt_number = np.sum(fpt_matrix, axis=0)
     not_fpt_number = nt - fpt_number
     fpt_matrix = np.vstack((fpt_matrix, not_fpt_number))
-    fpt_results = fpt_matrix / np.sum(fpt_matrix, axis=0)  # normalizing with the line of absent trajectories
+
+    # Normalize per bin (avoid division by 0)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        fpt_results = fpt_matrix / np.sum(fpt_matrix, axis=0, keepdims=True)
+        fpt_results[:, np.sum(fpt_matrix, axis=0) == 0] = 0  # fill 0 if no trajectory reached
 
     return fpt_results, fpt_number
 
 
+# def calculate_fpt_matrix(t_matrix: np.ndarray, x_matrix: np.ndarray, tmax: int, t_bin: int) -> tuple[np.ndarray, np.ndarray] :
+#     """
+#     Calculate the first passage time (FPT) density using bins to reduce memory usage.
+#     Positions are grouped into bins of 'bin_size'.
+
+#     Args:
+#         t_matrix (np.ndarray): All times.
+#         x_matrix (np.ndarray): All positions.
+#         tmax (int): Time maximum.
+#         bin_size (int): Bin size of time.
+#         rf (int): Rounding Factor.
+
+
+#     Returns:
+#         tuple: 
+#             - fpt_results (np.ndarray): Matrix of density of first pass times.
+#             - fpt_number (np.ndarray): Number of trajectories that reached the positions.
+#     """
+    
+#     x_max = np.max(np.concatenate(x_matrix))
+#     n_bins = math.ceil(x_max / t_bin)
+#     fpt_matrix = np.zeros((tmax + 1, n_bins))
+#     nt = len(t_matrix)
+
+#     translated_all_x = [[x - sublist[0] for x in sublist] for sublist in x_matrix]
+
+#     # I : matrix
+#     couples = np.concatenate([list(zip(x, [min(math.floor(ti), tmax) for ti in t])) for x, t in zip(translated_all_x, t_matrix)])
+
+#     for _ in range(len(couples)):
+#         if couples[_][0] != 0:
+#             bin_index_start = couples[_ - 1][0] // t_bin
+#             bin_index_end = couples[_][0] // t_bin
+#             fpt_matrix[couples[_][1]][bin_index_start:bin_index_end ] += 1
+
+#     # II : curve
+#     fpt_number = np.sum(fpt_matrix, axis=0)
+#     not_fpt_number = nt - fpt_number
+#     fpt_matrix = np.vstack((fpt_matrix, not_fpt_number))
+#     fpt_results = fpt_matrix / np.sum(fpt_matrix, axis=0)  # normalizing with the line of absent trajectories
+
+#     return fpt_results, fpt_number
+
+
 def calculate_instantaneous_statistics(
-    matrix_t: np.ndarray, 
-    matrix_x: np.ndarray, 
-    n_t: int, 
+    t_matrix: np.ndarray, 
+    x_matrix: np.ndarray, 
+    nt: int, 
     first_bin: float = 0,
     last_bin: float = 1e5,
     bin_width: float = 1.0,
@@ -1234,8 +1320,8 @@ def calculate_instantaneous_statistics(
     Calculate statistics for instantaneous speeds across multiple trajectories.
 
     Args:
-        matrix_t (np.ndarray): Times for all trajectories.
-        matrix_x (np.ndarray): Positions for all trajectories.
+        t_matrix (np.ndarray): Times for all trajectories.
+        x_matrix (np.ndarray): Positions for all trajectories.
         n_t (int): Total number of trajectories.
         first_bin (float, optional): Lower bound for the histogram bins. Defaults to 0.
         last_bin (float, optional): Upper bound for the histogram bins. Defaults to 1e6.
@@ -1261,31 +1347,46 @@ def calculate_instantaneous_statistics(
     """
 
     # Initialize arrays for displacements, time intervals, and speeds
-    dx_array = np.array([None] * n_t, dtype=object)
-    dt_array = np.array([None] * n_t, dtype=object)
-    vi_array = np.array([None] * n_t, dtype=object)
+    dx_array = np.array([None] * nt, dtype=object)
+    dt_array = np.array([None] * nt, dtype=object)
+    vi_array = np.array([None] * nt, dtype=object)
 
     # Loop through each trajectory
-    for i in range(n_t):
-        x = np.array(matrix_x[i])
-        t = np.array(matrix_t[i])
+    for i in range(nt):
+        x = np.array(x_matrix[i])
+        t = np.array(t_matrix[i])
+
+        # Skip NaN-only lines
+        if np.all(np.isnan(x)) or np.all(np.isnan(t)):
+            continue
 
         # Calculate displacements (Δx) and time intervals (Δt)
         dx = x[1:] - x[:-1]
         dt = t[1:] - t[:-1]
 
+        # Avoid division by zero or invalid intervals
+        valid = (~np.isnan(dx)) & (~np.isnan(dt)) & (dt != 0)
+
         # Calculate instantaneous speeds (Δx / Δt)
+        dx = dx[valid]
+        dt = dt[valid]
         dv = dx / dt
 
-        # Store results in arrays
-        dx_array[i] = dx
-        dt_array[i] = dt
-        vi_array[i] = dv
+        # Filter out non-finite speeds
+        valid_speed = np.isfinite(dv)
+        dx_array[i] = dx[valid_speed]
+        dt_array[i] = dt[valid_speed]
+        vi_array[i] = dv[valid_speed]
 
-    # Concatenate arrays for all trajectories
-    dx_array = np.concatenate(dx_array)
-    dt_array = np.concatenate(dt_array)
-    vi_array = np.concatenate(vi_array)
+    # # Concatenate arrays for all trajectories
+    # dx_array = np.concatenate(dx_array)
+    # dt_array = np.concatenate(dt_array)
+    # vi_array = np.concatenate(vi_array)
+
+    # Concatenate all valid segments
+    dx_array = np.concatenate([arr for arr in dx_array if arr is not None and len(arr) > 0])
+    dt_array = np.concatenate([arr for arr in dt_array if arr is not None and len(arr) > 0])
+    vi_array = np.concatenate([arr for arr in vi_array if arr is not None and len(arr) > 0])
 
     # Calculate distributions for Δx, Δt, and speeds
     dx_points, dx_distrib = calculate_distribution(dx_array, first_bin, last_bin, bin_width)
@@ -1305,8 +1406,9 @@ def calculate_instantaneous_statistics(
         vi_mean = np.mean(vi_array)
         vi_med = np.median(vi_array)
         vi_mp = vi_points[np.argmax(vi_distrib)]
+
+    # Default values if distributions are empty
     else:
-        # Default values if distributions are empty
         dx_mean, dx_med, dx_mp = 0.0, 0.0, 0.0
         dt_mean, dt_med, dt_mp = 0.0, 0.0, 0.0
         vi_mean, vi_med, vi_mp = 0.0, 0.0, 0.0
@@ -1639,18 +1741,6 @@ def HiC_map_generation(data: np.ndarray) -> np.ndarray:
 # ================================================
 
 
-def listoflist_into_matrix(listoflist: list) -> np.ndarray:
-    """
-    Converts a list of lists with varying lengths into a 2D NumPy array,
-    padding shorter rows with np.nan so that all rows have equal length.
-    """
-    len_max = max(len(row) for row in listoflist)
-    matrix = np.full((len(listoflist), len_max), np.nan)
-    for i, row in enumerate(listoflist):
-        matrix[i, :len(row)] = row
-    return matrix
-
-
 def find_jumps(x_matrix: np.ndarray, t_matrix) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Identifies forward and reverse jump times from position and time matrices.
@@ -1726,9 +1816,7 @@ def calculate_nature_jump_distribution(t_matrix: np.ndarray,
     """
 
     # Get the datas
-    t_full = listoflist_into_matrix(t_matrix)
-    x_full = listoflist_into_matrix(x_matrix)
-    fb_array, fr_array, rb_array, rr_array = find_jumps(x_full, t_full)
+    fb_array, fr_array, rb_array, rr_array = find_jumps(x_matrix, t_matrix)
     
     # Get the distributions of datas
     _, fb_y = calculate_distribution(data=fb_array, first_bin=first_bin, last_bin=last_bin, bin_width=bin_width)
@@ -1737,10 +1825,6 @@ def calculate_nature_jump_distribution(t_matrix: np.ndarray,
     _, rr_y = calculate_distribution(data=rr_array, first_bin=first_bin, last_bin=last_bin, bin_width=bin_width)
     
     return fb_y, fr_y, rb_y, rr_y
-
-
-def exp_decay(t, y0, tau):
-    return y0 * np.exp(-t / tau)
 
 
 def extracting_taus(
@@ -1769,7 +1853,29 @@ def extracting_taus(
     y0_rb, tau_rb = curve_fit(exp_decay, array, rb_y, p0=(rb_y[0], 1.0))[0]
     y0_rr, tau_rr = curve_fit(exp_decay, array, rr_y, p0=(rr_y[0], 1.0))[0]
 
-    return tau_fb, tau_fr, tau_rb, tau_rr, y0_fb, y0_fr, y0_rb, y0_rr
+    return tau_fb, tau_fr, tau_rb, tau_rr
+
+
+def calculating_rates(tau_fb, tau_fr, tau_rb, tau_rr):
+    """
+    Calculate fitted binding and resting rates based on times.
+    So not on dweel times !
+
+    Parameters:
+        tau_fb (float): Mean forward binding time.
+        tau_fr (float): Mean forward resting time.
+        tau_rb (float): Mean reverse binding time.
+        tau_rr (float): Mean reverse resting time.
+
+    Returns:
+        tuple: 
+            rtot_bind_fit (float): Fitted total binding rate.
+            rtot_rest_fit (float): Fitted total resting rate.
+    """
+    rtot_bind_fit = ((tau_fb + tau_rb) / 2) ** -1
+    rtot_rest_fit = ((tau_fr + tau_rr) / 2) ** -1
+
+    return rtot_bind_fit, rtot_rest_fit
 
 
 def getting_forwards(
@@ -1794,14 +1900,11 @@ def getting_forwards(
     """
 
     # Get the datas
-    t_full = listoflist_into_matrix(t_matrix)
-    x_full = listoflist_into_matrix(x_matrix)
-
-    mask = np.zeros_like(x_full, dtype=bool)
-    matches = (x_full[:, :-1] == x_full[:, 1:])
+    mask = np.zeros_like(x_matrix, dtype=bool)
+    matches = (x_matrix[:, :-1] == x_matrix[:, 1:])
     mask[:, 1:] = matches
 
-    array = mask * t_full
+    array = mask * t_matrix
     result = np.concatenate([
         np.insert(row[(row != 0 ) & ~np.isnan(row)], 0, 0)
         for row in array
@@ -1835,15 +1938,11 @@ def getting_reverses(
         Tuple of bin centers and reverse dwell time distribution.
     """
 
-    # Get the datas
-    t_full = listoflist_into_matrix(t_matrix)
-    x_full = listoflist_into_matrix(x_matrix)
+    # Proper times
+    times = t_matrix[:, 0::2]
 
-    # Rajouter les listoflist in matrix
-    times = t_full[:, 0::2]
-
-    mask = np.zeros_like(x_full, dtype=bool)
-    matches = (x_full[:, :-1] == x_full[:, 1:])
+    mask = np.zeros_like(x_matrix, dtype=bool)
+    matches = (x_matrix[:, :-1] == x_matrix[:, 1:])
     mask[:, 1:] = matches
     filter = mask[:, 0::2]
 
@@ -1860,7 +1959,69 @@ def getting_reverses(
     return points, distrib_reverses
 
 
-def find_dwell_times(
+def calculate_dwell_distribution(t_matrix: list, x_matrix: list, first_bin: float, last_bin: float, bin_width: float) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Computes the dwell time distributions for forward and reverse events based on time and position matrices.
+
+    Args:
+        t_matrix (list of list): Time values. Each sublist corresponds to a trajectory.
+        x_matrix (list of list): Position values. Each sublist corresponds to a trajectory.
+        first_bin: Lower bound of histogram bins.
+        last_bin: Upper bound of histogram bins.
+        bin_width: Width of histogram bins.
+
+    Returns:
+        Tuple of bin centers and forward time distribution.
+            - t_points (np.ndarray): points of the distributions.
+            - forward_result (np.ndarray): forward dwell time distribution.
+            - reverse_result (np.ndarray): reverse dwell time distribution.
+    
+    Notes
+    -----
+    - A "dwell" corresponds to a time interval between two steps.
+    - Forward dwells are detected when two consecutive jumps go forward.
+    - Reverse dwells are detected when a forward jump is followed by a reverse.
+    - Nan values in the input are safely masked and ignored.
+    - Zero-duration dwell times are excluded from the final distributions.
+
+    Notations
+    -----
+    - e for event
+    - d for dwell
+    - e_forwards : True = Forward & False = Reverse & -- = nan
+    """
+
+    # Getting the datas in the proper format    
+    t = np.diff(t_matrix, axis=1)
+    x = x_matrix
+
+    # Filtering on the x positions : did it progress along chromatin or not ?
+    x_pair = x[:, 0::2]
+    x_mask = np.ma.masked_invalid(x_pair)
+    e_forwards = x_mask[:, :-1] < x_mask[:, 1:]
+
+    # Filtering on the events to get the dwells : 
+    d_forwards = (e_forwards[:, :-1] == True) & (e_forwards[:, 1:] == True)     # was there a forward jump then a forward jump ?
+    d_reverses = (e_forwards[:, :-1] == True) & (e_forwards[:, 1:] == False)    # was there a forward jump then a reverse jump ?
+
+    # Calculating time associated by grouping them per 2 because of our formalism : bind + rest
+    t_event = np.add(t[:, ::2], t[:, 1::2])
+    t_forwards = d_forwards * t_event[:, :-1]
+    t_reverses = d_reverses * t_event[:, :-1]
+
+    # Filtering the results to remove the 0.0 and --
+    t_forwards_filtered = t_forwards[t_forwards != 0.0].compressed()
+    t_reverses_filtered = t_reverses[t_reverses != 0.0].compressed()
+
+    # Calculating the distributions of all extracted times
+    dwell_points = np.arange(first_bin, last_bin, bin_width)
+    _, forward_result = calculate_distribution(t_forwards_filtered, first_bin, last_bin, bin_width)
+    _, reverse_result = calculate_distribution(t_reverses_filtered, first_bin, last_bin, bin_width)
+
+    return dwell_points, forward_result, reverse_result
+
+
+def calculate_dwell_times(
     points: np.ndarray, 
     distrib_forwards: np.ndarray, 
     distrib_reverses: np.ndarray,
@@ -1880,11 +2041,15 @@ def find_dwell_times(
         Decay constants and initial values for forward and reverse fits.
     """
 
+    # Condition on empty arrays
+    if len(distrib_forwards) == 0 or len(distrib_reverses) == 0:
+        tau_forwards, tau_reverses = np.nan, np.nan
+        return tau_forwards, tau_reverses
+    
     # Determine automatic xmin for each distribution (after its peak)
-    xmin_forward = points[np.argmax(distrib_forwards)]
-    xmin_reverse = points[np.argmax(distrib_reverses)]
-    # print(f"Selected xmin_forward = {xmin_forward}")
-    # print(f"Selected xmin_reverse = {xmin_reverse}")
+    else:
+        xmin_forward = points[np.argmax(distrib_forwards)]
+        xmin_reverse = points[np.argmax(distrib_reverses)]
 
     # Apply filtering per distribution
     mask_forward = (points >= xmin_forward)
@@ -1920,8 +2085,7 @@ def find_dwell_times(
     y0_forwards, tau_forwards = safe_fit(x_fit_fwd, y_fit_fwd, p0_fwd)
     y0_reverses, tau_reverses = safe_fit(x_fit_rev, y_fit_rev, p0_rev)
 
-    # Return
-    return tau_forwards, tau_reverses, y0_forwards, y0_reverses 
+    return tau_forwards, tau_reverses 
 
 
 # ================================================
@@ -1933,12 +2097,11 @@ def sw_nucleo(
     alpha_choice: str, s: int, l: int, bpmin: int, 
     mu: float, theta: float, lmbda: float, alphao: float, alphaf: float, beta: float, 
     rtot_bind: float, rtot_rest: float,
-    nt: int,
-    path: str,
+    nt: int, path: str,
     Lmin: int, Lmax: int, bps: int, origin: int,
     tmax: float, dt: float, 
     algorithm_choice = "two_steps",
-    saving = "map"
+    saving = "data"
     ) -> None:
     """
     Simulates condensin dynamics along chromatin with specified parameters.
@@ -1974,26 +2137,27 @@ def sw_nucleo(
         - This function is a core part of the nucleosome simulation pipeline.
     """
 
-    # --- Initialization --- #
+    # ------------------- Initialization ------------------- #
 
-    # File
+    # Title & Folder    
     title = (
             f"alphachoice={alpha_choice}_s={s}_l={l}_bpmin={bpmin}_"
             f"mu={mu}_theta={theta}_"
             f"lmbda={lmbda:.2e}_rtotbind={rtot_bind:.2e}_rtotrest={rtot_rest:.2e}_"
             f"nt={nt}"
             )
-    if not os.path.exists(title):
-        os.mkdir(title)
+    os.makedirs(title, exist_ok=True)
 
     # Chromatin
     L = np.arange(Lmin, Lmax, bps)
     lenght = (Lmax-Lmin) // bps
 
-    # Calibration 
+    # Time 
     times = np.arange(0,tmax,dt)    # Discretisation of all times
-    alpha_0 = int(1e+0)             # Calibration on linear speed in order to multiplicate speeds by a linear number
     bin_fpt = int(1e+1)             # Bins on times during the all analysis
+
+    # Linear factor
+    alpha_0 = int(1e+0)             # Calibration on linear speed in order to multiplicate speeds by a linear number
 
     # Bins for Positions and Times : fb (firstbin) - lb (lastbin) - bw (binwidth)
     x_fb, x_lb, x_bw = 0, 10_000, 1
@@ -2001,118 +2165,90 @@ def sw_nucleo(
     x_bins = np.arange(x_fb, x_lb, x_bw)
     t_bins = np.arange(t_fb, t_lb, t_bw)
 
-    # --- Simulation --- #
+    # ------------------- Simulation ------------------- #
 
     # Chromatin : Landscape + Obstacles and Linkers
-    alpha_matrix, alpha_mean = alpha_matrix_calculation(alpha_choice, s, l, bpmin, alphao, alphaf, Lmin, Lmax, bps, nt)
-    obs_points, obs_distrib, link_points, link_distrib = calculate_obs_and_linker_distribution(alpha_matrix[0], alphao, alphaf)
-    link_view = calculate_linker_landscape(alpha_matrix, alpha_choice, nt, alphaf, Lmin, Lmax)
+    alpha_matrix, alpha_mean = alpha_matrix_calculation(
+        alpha_choice, s, l, bpmin, alphao, alphaf, Lmin, Lmax, bps, nt
+    )
+    obs_points, obs_distrib, link_points, link_distrib = calculate_obs_and_linker_distribution(
+        alpha_matrix[0], alphao, alphaf
+    )
+    link_view = calculate_linker_landscape(
+        alpha_matrix, alpha_choice, nt, alphaf, Lmin, Lmax
+    )
 
     # Probabilities
     p = proba_gamma(mu, theta, L)
 
-    # Modeling - Gillespie 1 step or 2 steps
+    # Gillespie simulation
     if algorithm_choice == "one_step":
-        results, t_matrix, x_matrix = gillespie_algorithm_one_step(nt, tmax, dt, alpha_matrix, beta, Lmax, lenght, origin, p)
+        results, t_matrix, x_matrix = gillespie_algorithm_one_step(
+            nt, tmax, dt, alpha_matrix, beta, Lmax, lenght, origin, p
+        )
     elif algorithm_choice == "two_steps":
-        results, t_matrix, x_matrix = gillespie_algorithm_two_steps(alpha_matrix, p, beta, lmbda, rtot_bind, rtot_rest, nt, tmax, dt, L, origin)
+        results, t_matrix, x_matrix = gillespie_algorithm_two_steps(
+            alpha_matrix, p, beta, lmbda, rtot_bind, rtot_rest, nt, tmax, dt, L, origin
+        )
+    else:
+        raise ValueError("Invalid algorithm choice")   
 
-    # Results
-    results_mean, results_med, results_std, v_mean, v_med = calculate_main_results(results, dt, alpha_0, nt)
-    vf, Cf, wf, vf_std, Cf_std, wf_std, xt_over_t, G, bound_low, bound_high = fitting_in_two_steps(times, results_mean, results_std)
+    # Clean datas
+    x_matrix = listoflist_into_matrix(x_matrix)
+    t_matrix = listoflist_into_matrix(t_matrix)
 
-    # Positions
-    # xbj_points, xbj_distrib = calculate_distribution_of_jump_size(x_matrix, x_fb, x_lb, x_bw)
+    # ------------------- Analysis 1 : General results + Jump size + Time size + First pass times ------------------- #
 
-    # Times : First pass times + Waiting times + Forward and Reverse times
-    fpt_distrib_2D, fpt_number = calculate_fpt_matrix(t_matrix, x_matrix, tmax, bin_fpt)
-    tbj_points, tbj_distrib = calculate_distrib_tbjs(t_matrix)
+    # General results
+    results_mean, results_med, results_std, v_mean, v_med = calculate_main_results(
+        results, dt, alpha_0, nt
+    )
+    vf, Cf, wf, vf_std, Cf_std, wf_std, xt_over_t, G, bound_low, bound_high = fitting_in_two_steps(
+        times, results_mean, results_std
+    )
 
-    # Speeds
-    dx_points, dx_distrib, dx_mean, dx_med, dx_mp, dt_points, dt_distrib, dt_mean, dt_med, dt_mp, vi_points, vi_distrib, vi_mean, vi_med, vi_mp = calculate_instantaneous_statistics(t_matrix, x_matrix, nt)
+    # Jump size distribution
+    xbj_points, xbj_distrib = calculate_jumpsize_distribution(
+        x_matrix, x_fb, x_lb, x_bw
+    )
 
+    # Time size distribution
+    tbj_points, tbj_distrib = calculate_timejump_distribution(t_matrix)
 
-    # --------- Working area --------- #
+    # First pass times
+    # fpt_distrib_2D, fpt_number = calculate_fpt_matrix(t_matrix, x_matrix, tmax, bin_fpt)
 
+    # ------------------- Analysis 2 : Speeds + Rates ------------------- #
 
-    # 2.1 : Forward and Reverse calculation
-    fb_y, fr_y, rb_y, rr_y = calculate_nature_jump_distribution(t_matrix, x_matrix, t_fb, t_lb, t_bw)
-    tau_fb, tau_fr, tau_rb, tau_rr, y0_fb, y0_fr, y0_rb, y0_rr = extracting_taus(fb_y, fr_y, rb_y, rr_y, t_bins)
+    # Instantaneous speeds
+    dx_points, dx_distrib, dx_mean, dx_med, dx_mp, \
+    dt_points, dt_distrib, dt_mean, dt_med, dt_mp, \
+    vi_points, vi_distrib, vi_mean, vi_med, vi_mp = calculate_instantaneous_statistics(
+        t_matrix, x_matrix, nt
+    )
 
+    # Rates and Taus
+    dwell_points, forward_result, reverse_result = calculate_dwell_distribution(
+        t_matrix, x_matrix, t_fb, t_lb, t_bw
+    )
+    tau_forwards, tau_reverses = calculate_dwell_times(
+        dwell_points, distrib_forwards=forward_result, distrib_reverses=reverse_result, xmax=100
+    )
 
-    # 2.2 New Forwards Reverses
-    xf_points, yf_points = getting_forwards(t_matrix, x_matrix, t_fb, t_lb, t_bw)
-    xr_points, yr_points = getting_reverses(t_matrix, x_matrix, t_fb, t_lb, t_bw)
-    tau_forwards, tau_reverses, y0_forwards, y0_reverses = find_dwell_times(xf_points, distrib_forwards=yf_points, distrib_reverses=yr_points, xmax=100)
+    # ------------------- Working area ------------------- #
 
-    # # 2.3 Plot
-    # fig, axes = plt.subplots(1, 2, figsize=(16, 6))
-
-    # ax = axes[0]
-    # ax.plot(t_bins, fb_y, label="forward_bind")
-    # ax.plot(t_bins, fr_y, label="forward_rest")
-    # ax.plot(t_bins, rb_y, label="reverse_bind")
-    # ax.plot(t_bins, rr_y, label="reverse_rest")
-    # ax.plot(t_bins, exp_decay(t_bins, y0_fb, tau_fb), label=f"tau_fb={tau_fb:.2f}", ls="--")
-    # ax.plot(t_bins, exp_decay(t_bins, y0_fr, tau_fr), label=f"tau_fr={tau_fr:.2f}", ls="--")
-    # ax.plot(t_bins, exp_decay(t_bins, y0_rb, tau_rb), label=f"tau_rb={tau_rb:.2f}", ls="--")
-    # ax.plot(t_bins, exp_decay(t_bins, y0_rr, tau_rr), label=f"tau_rr={tau_rr:.2f}", ls="--")
-    # ax.set_xlim([0, 50])
-    # ax.grid(True)
-    # ax.legend()
-    # ax.set_title("Forward vs Reverse by us")
-    # ax.set_xlabel("Bins")
-    # ax.set_ylabel("Density")
-
-    # ax = axes[1]
-    # ax.plot(xf_points, yf_points, label="forward", c="r", lw=0.5)
-    # ax.plot(xr_points, yr_points, label="reverse", c="b", lw=0.5)
-    # ax.plot(xf_points, exp_decay(xf_points, y0_forwards, tau_forwards), label=f"tau_forwards={tau_forwards:.2f}", ls="--", c="r")
-    # ax.plot(xr_points, exp_decay(xr_points, y0_reverses, tau_reverses), label=f"tau_reverses={tau_reverses:.2f}", ls="--", c="b")
-    # ax.set_xlim([0,50])
-    # ax.grid(True)
-    # ax.legend()
-    # ax.set_title("Forward vs Reverse by Ryu")
-    # ax.set_xlabel("Bins")
-    # ax.set_ylabel("Density")
-
-    # plt.tight_layout()
-    # plt.savefig("/home/nicolas/Documents/Workspace/nucleo/outputs/output.png")
-    # plt.close()
+    # Currently studying speeds in order to verify  
+    # (HEREEE : work again on this section)
+    # The definition is maybe not good + we are not using here what we found eralier on dweel times
+    # v_th = theoretical_speed(alphaf, alphao, s, l, mu, lmbda, rtot_bind, rtot_rest)
+    # fb_y, fr_y, rb_y, rr_y = calculate_nature_jump_distribution(t_matrix, x_matrix, t_fb, t_lb, t_bw)
+    # tau_fb, tau_fr, tau_rb, tau_rr = extracting_taus(fb_y, fr_y, rb_y, rr_y, t_bins)
+    # rtot_bind_fit, rtot_rest_fit = calculating_rates(tau_fb, tau_fr, tau_rb, tau_rr)
+    # v_fit = theoretical_speed(alphaf, alphao, s, l, mu, lmbda, rtot_bind_fit, rtot_rest_fit)
 
 
-    # 1. Speed value in function of lmbda
-    def theoretical_speed(alphaf, alphao, s, l, mu, lmbda, rtot_bind, rtot_rest):
-        p_alpha = (s*alphao + l*alphaf) / (l+s) * (1-lmbda)
-        t_alpha = (1 / rtot_bind) + (1 / rtot_rest)
-        x_alpha = mu
-        return p_alpha / t_alpha * x_alpha
-    
-    v_th = theoretical_speed(alphaf, alphao, s, l, mu, lmbda, rtot_bind, rtot_rest)
+    # ------------------- Writing ------------------- #
 
-    rtot_bind_fit = ((tau_fb + tau_rb) / 2) ** -1
-    rtot_rest_fit = ((tau_fr + tau_rr) / 2) ** -1
-    v_fit = theoretical_speed(alphaf, alphao, s, l, mu, lmbda, rtot_bind_fit, rtot_rest_fit)
-
-    # # Prints of speed
-    # print(f"v_mean = {v_mean:.2f}")
-    # print(f"v_th = {v_th:.2f}")
-    # print(f"v_fit = {v_fit:.2f}")
-
-    print(x_matrix[0])
-    print(t_matrix[0])
-
-
-    # --------- ------------#
-
-
-    # --- Writing --- #
-
-    # First cleaning
-    del alpha_matrix
-    gc.collect()
-
-    # Composing the main result that will be written
     if saving == "data":
         data_result = {                                              
             'alpha_choice': alpha_choice, 's': s, 'l': l, 'bpmin': bpmin,                               # parameters
@@ -2127,15 +2263,15 @@ def sw_nucleo(
             'link_points':link_points, 'link_distrib':link_distrib,
             'link_view':link_view,
             
-            # 't_matrix': t_matrix, 'x_matrix': x_matrix,
-
             'results':results,
             'results_mean':results_mean, 'results_med':results_med, 'results_std':results_std, 
             'v_mean':v_mean, 'v_med':v_med,
-            'vf':vf, 'Cf':Cf, 'wf':wf, 'vf_std':vf_std, 'Cf_std':Cf_std, 'wf_std':wf_std,
+            'vf':vf, 'Cf':Cf, 'wf':wf, 
+            'vf_std':vf_std, 'Cf_std':Cf_std, 'wf_std':wf_std,
 
-            'bin_fpt':bin_fpt, 'fpt_distrib_2D':fpt_distrib_2D, 'fpt_number':fpt_number,
+            'xbj_points':xbj_points, 'xbj_distrib':xbj_distrib,
             'tbj_points':tbj_points, 'tbj_distrib':tbj_distrib,
+            'bin_fpt':bin_fpt, 'fpt_distrib_2D':fpt_distrib_2D, 'fpt_number':fpt_number,
 
             'dx_points':dx_points, 'dx_distrib':dx_distrib, 'dx_mean':dx_mean, 'dx_med':dx_med, 'dx_mp':dx_mp, 
             'dt_points':dt_points, 'dt_distrib':dt_distrib, 'dt_mean':dt_mean, 'dt_med':dt_med, 'dt_mp':dt_mp, 
@@ -2158,18 +2294,14 @@ def sw_nucleo(
             'tau_forwards': tau_forwards, 'tau_reverses': tau_reverses
         }
 
-    # Writing event
+    # Writing data
     writing_parquet(path, title, data_result)
 
-    # Second cleaning
-    for key in list(data_result.keys()):
-        del data_result[key]
-        if key in locals():
-            del locals()[key]
-    del data_result 
+    # Clean raw datas
+    del alpha_matrix
+    del data_result
     gc.collect()
 
-    # Done
     return None
 
 
@@ -2248,255 +2380,341 @@ def checking_inputs(
         raise ValueError(f"dt must be positive. Got {dt}.")
     
 
+def process_function(params: dict, chromatin: dict, time: dict) -> None:
+    """
+    Executes one simulation with the given parameters and shared constants.
+    
+    Args:
+        params (dict): One combination of geometry + probas + rates + meta parameters.
+        chromatin (dict): Dict with Lmin, Lmax, bps, origin.
+        time (dict): Dict with tmax, dt.
+    """
+    checking_inputs(
+        alpha_choice=params['alpha_choice'],
+        s=params['s'],
+        l=params['l'],
+        bpmin=params['bpmin'],
+        mu=params['mu'],
+        theta=params['theta'],
+        lmbda=params['lmbda'],
+        alphao=params['alphao'],
+        alphaf=params['alphaf'],
+        beta=params['beta'],
+        nt=params['nt'],
+        Lmin=chromatin["Lmin"],
+        Lmax=chromatin["Lmax"],
+        bps=chromatin["bps"],
+        origin=chromatin["origin"],
+        tmax=time["tmax"],
+        dt=time["dt"]
+    )
+
+    sw_nucleo(
+        params['alpha_choice'],
+        params['s'], params['l'], params['bpmin'],
+        params['mu'], params['theta'],
+        params['lmbda'], params['alphao'], params['alphaf'], params['beta'],
+        params['rtot_bind'], params['rtot_rest'],
+        params['nt'], params['path'],
+        chromatin["Lmin"], chromatin["Lmax"], chromatin["bps"], chromatin["origin"],
+        time["tmax"], time["dt"]
+    )
+
+
 # ================================================
 # Part 3.3 : Multiprocessing functions
 # ================================================
 
 
-def choose_configuration(config: str):
+def choose_configuration(config: str) -> dict:
     """
-    Select the study configuration based on the given configuration identifier.
-
-    Args:
-        config (str): Identifier for the configuration to be selected. 
-            Possible values:
-                - 'NU': Nucleosome configuration.
-                - 'BP': Base pair configuration.
-                - 'LSLOW': Low linker size configuration.
-                - 'LSHIGH': High linker size configuration.
-                - 'TEST': Test configuration.
-
-    Returns:
-        tuple: Contains the following configuration parameters:
-            - mu_values (np.ndarray): Mean values for the distribution.
-            - theta_values (np.ndarray): Standard deviations for the distribution.
-            - alpha_choice_values (list): List of alpha choice values.
-            - bpmin_values (np.ndarray): Array of minimum base pair values.
-            - s_values (np.ndarray): Array of S values.
-            - l_values (np.ndarray): Array of L values.
-            - folder_name (str): Name of the folder for the selected configuration.
+    Returns a dictionary of study parameters organized in logical blocks.
+    All list-like parameters are converted to np.array.
     """
 
-    # Probabilities
-    alphao = 0          # Probability of beeing rejected
-    alphaf = 1          # Probability of beeing accepted
-    beta = 0            # Probability of beeing stall
+    # ──────────────────────────────────
+    # Shared constants (used everywhere)
+    # ──────────────────────────────────
 
-    # Working on
-    lmbda = np.arange(0.10, 0.90, 0.20)        # Probability of in vitro behavior to be rejected
-    tau_min = 0.10
-    tau_max = 20
-    n_points = 100
-    tau_linear = np.linspace(tau_min, tau_max, n_points)
-    r_for_linear = 1 / tau_linear
-    rtot_bind = r_for_linear       # Reaction rate of binding
-    rtot_rest = r_for_linear       # Reaction rate of resting
+    CHROMATIN = {
+        "Lmin": 0,          # First point of chromatin (included !)
+        "Lmax": 50_000,     # Last point of chromatin (excluded !)
+        "bps": 1,           # Based pair step 1 per 1
+        "origin": 10_000    # Falling point of condensin on chromatin 
+    }
 
-    lmbda = np.array([0.20])
-    rtot_bind, rtot_rest = np.array([1/6]), np.array([1/6])
+    TIME = {
+        "tmax": 100,        # Total time of modeling : 0 is taken into account
+        "dt": 1             # Step of time
+    }
 
-    # Configurations
-    if config == 'NU':
-        alpha_choice_values = ['ntrandom', 'periodic', 'constantmean']
-        s_values = np.array([150])
-        l_values = np.array([10])
-        bpmin_values = np.array([0])
-        mu_values = np.arange(100, 605, 5)
-        theta_values = np.arange(1, 101, 1)
-        nt = 10_000
-        path = 'ncl_nu'
+    PROBAS = {
+        "lmbda": 0.40,      # Probability of in vitro condensin to reverse
+        "alphao": 0.00,     # Probability of binding if obstacle
+        "alphaf": 1.00,     # Probability of binding if linker
+        "beta": 0.00,       # Probability of in vitro condensin to undinb
+    }
 
-    elif config == 'BP':
-        alpha_choice_values = ['ntrandom']       
-        s_values = np.array([150])
-        l_values = np.array([10])     
-        bpmin_values = np.array([5, 10, 15])
-        mu_values = np.arange(100, 605, 5)
-        theta_values = np.arange(1, 101, 1)
-        nt = 10_000
-        path = 'ncl_bp'   
+    RATES = {
+        "rtot_bind": 1/6,   # Rate of binding
+        "rtot_rest": 1/6    # Rate of resting
+    }
 
-    elif config == 'LSLOW':
-        alpha_choice_values = ['ntrandom']
-        s_values = np.array([150])
-        l_values = np.array([5, 15, 20, 25]) 
-        bpmin_values = np.array([0])
-        mu_values = np.arange(100, 605, 5)
-        theta_values = np.arange(1, 101, 1)
-        nt = 10_000
-        path = 'ncl_lslow'
+    # ──────────────────────────────────
+    # Presets for study configurations
+    # ──────────────────────────────────
 
-    elif config == 'LSHIGH':
-        alpha_choice_values = ['ntrandom']
-        s_values = np.array([150])
-        l_values = np.array([50, 100, 150]) 
-        bpmin_values = np.array([0])
-        mu_values = np.arange(100, 605, 5)
-        theta_values = np.arange(1, 101, 1)
-        nt = 10_000
-        path = 'ncl_lshigh' 
+    presets = {
 
-    elif config == 'TEST':
-        alpha_choice_values = ['constantmean']
-        # alpha_choice_values = ['periodic', 'ntrandom', 'constantmean']
-        s_values = np.array([75])
-        l_values = np.array([150])
-        bpmin_values = np.array([5])
-        mu_values = np.array([300])
-        # mu_values = np.array([100,200,300,400,500,600])
-        theta_values = np.array([50])
-        # theta_values = np.array([1,50,100])
-        nt = 2
-        path = 'ncl_test'
+        "NU": {
+            "geometry": {
+                "alpha_choice": np.array(['ntrandom', 'periodic', 'constantmean']),
+                "s": np.array([150], dtype=int),
+                "l": np.array([10], dtype=int),
+                "bpmin": np.array([0], dtype=int)
+            },
+            "probas": {
+                "mu": np.arange(100, 605, 5),
+                "theta": np.arange(1, 101, 1),
+                "lmbda": np.array([PROBAS["lmbda"]], dtype=float),
+                "alphao": np.array([PROBAS["alphao"]], dtype=float),
+                "alphaf": np.array([PROBAS["alphaf"]], dtype=float),
+                "beta": np.array([PROBAS["beta"]], dtype=float)
+            },
+            "rates": {
+                "rtot_bind": np.array([RATES["rtot_bind"]], dtype=float),
+                "rtot_rest": np.array([RATES["rtot_rest"]], dtype=float)
+            },
+            "meta": {
+                "nt": 100,
+                "path": "ncl_nu_test"
+            }
+        },
 
-    elif config == 'MAP':
-        alpha_choice_values = ['constantmean']
-        s_values = np.array([0])
-        l_values = np.array([150])
-        bpmin_values = np.array([0])
-        mu_values = np.array([300])
-        theta_values = np.array([50])
-        nt = 1_000
-        path = 'ncl_map' 
+        "BP": {
+            "geometry": {
+                "alpha_choice": np.array(['ntrandom']),
+                "s": np.array([150], dtype=int),
+                "l": np.array([10], dtype=int),
+                "bpmin": np.array([5, 10, 15], dtype=int)
+            },
+            "probas": {
+                "mu": np.arange(100, 605, 5),
+                "theta": np.arange(1, 101, 1),
+                "lmbda": np.array([PROBAS["lmbda"]], dtype=float),
+                "alphao": np.array([PROBAS["alphao"]], dtype=float),
+                "alphaf": np.array([PROBAS["alphaf"]], dtype=float),
+                "beta": np.array([PROBAS["beta"]], dtype=float)
+            },
+            "rates": {
+                "rtot_bind": np.array([RATES["rtot_bind"]], dtype=float),
+                "rtot_rest": np.array([RATES["rtot_rest"]], dtype=float)
+            },
+            "meta": {
+                "nt": 10_000,
+                "path": "ncl_bp"
+            }
+        },
 
-    else:
-        raise ValueError(f"Unknown configuration identifier: {config}")
-    
-    return (alpha_choice_values, s_values, l_values, bpmin_values,      # parameters
-            mu_values, theta_values, lmbda, alphao, alphaf, beta,       # probabilities
-            rtot_bind, rtot_rest,                                       # rates   
-            nt,                                                         # trajectories
-            path)                                                       # folder
+        "LSLOW": {
+            "geometry": {
+                "alpha_choice": np.array(['ntrandom']),
+                "s": np.array([150], dtype=int),
+                "l": np.array([5, 15, 20, 25], dtype=int),
+                "bpmin": np.array([0], dtype=int)
+            },
+            "probas": {
+                "mu": np.arange(100, 605, 5),
+                "theta": np.arange(1, 101, 1),
+                "lmbda": np.array([PROBAS["lmbda"]], dtype=float),
+                "alphao": np.array([PROBAS["alphao"]], dtype=float),
+                "alphaf": np.array([PROBAS["alphaf"]], dtype=float),
+                "beta": np.array([PROBAS["beta"]], dtype=float)
+            },
+            "rates": {
+                "rtot_bind": np.array([RATES["rtot_bind"]], dtype=float),
+                "rtot_rest": np.array([RATES["rtot_rest"]], dtype=float)
+            },
+            "meta": {
+                "nt": 10_000,
+                "path": "ncl_lslow"
+            }
+        },
+
+        "LSHIGH": {
+            "geometry": {
+                "alpha_choice": np.array(['ntrandom']),
+                "s": np.array([150], dtype=int),
+                "l": np.array([50, 100, 150], dtype=int),
+                "bpmin": np.array([0], dtype=int)
+            },
+            "probas": {
+                "mu": np.arange(100, 605, 5),
+                "theta": np.arange(1, 101, 1),
+                "lmbda": np.array([PROBAS["lmbda"]], dtype=float),
+                "alphao": np.array([PROBAS["alphao"]], dtype=float),
+                "alphaf": np.array([PROBAS["alphaf"]], dtype=float),
+                "beta": np.array([PROBAS["beta"]], dtype=float)
+            },
+            "rates": {
+                "rtot_bind": np.array([RATES["rtot_bind"]], dtype=float),
+                "rtot_rest": np.array([RATES["rtot_rest"]], dtype=float)
+            },
+            "meta": {
+                "nt": 10_000,
+                "path": "ncl_lshigh"
+            }
+        },
+
+        "TEST": {
+            "geometry": {
+                "alpha_choice": np.array(['constantmean']),
+                "s": np.array([75], dtype=int),
+                "l": np.array([150], dtype=int),
+                "bpmin": np.array([5], dtype=int)
+            },
+            "probas": {
+                "mu": np.array([300]),
+                "theta": np.array([50]),
+                "lmbda": np.array([PROBAS["lmbda"]], dtype=float),
+                "alphao": np.array([PROBAS["alphao"]], dtype=float),
+                "alphaf": np.array([PROBAS["alphaf"]], dtype=float),
+                "beta": np.array([PROBAS["beta"]], dtype=float)
+            },
+            "rates": {
+                "rtot_bind": np.array([RATES["rtot_bind"]], dtype=float),
+                "rtot_rest": np.array([RATES["rtot_rest"]], dtype=float)
+            },
+            "meta": {
+                "nt": 10_000,
+                "path": "ncl_test"
+            }
+        },
 
 
-def process_function(params: tuple) -> None:
+        "MAP": {
+            "geometry": {
+                "alpha_choice": np.array(['constantmean']),
+                "s": np.array([0], dtype=int),
+                "l": np.array([150], dtype=int),
+                "bpmin": np.array([0], dtype=int)
+            },
+            "probas": {
+                "mu": np.array([300]),
+                "theta": np.array([50]),
+                "lmbda": np.arange(0.10, 0.90, 0.20),
+                "alphao": np.array([PROBAS["alphao"]], dtype=float),
+                "alphaf": np.array([PROBAS["alphaf"]], dtype=float),
+                "beta": np.array([PROBAS["beta"]], dtype=float)
+            },
+            "rates": {
+                "rtot_bind": 1 / np.linspace(0.10, 20, 100),
+                "rtot_rest": 1 / np.linspace(0.10, 20, 100)
+            },
+            "meta": {
+                "nt": 1_000,
+                "path": "ncl_map"
+            }
+        }
+        
+    }
+
+    if config not in presets:
+        raise ValueError(f"Unknown configuration: {config}")
+
+    return {
+        **presets[config],
+        "chromatin": CHROMATIN,
+        "time": TIME
+    }
+
+
+def generate_param_combinations(cfg: dict) -> list[dict]:
     """
-    Execute a single process with the given parameters.
-
-    Args:
-        params (tuple): A tuple containing the following parameters in order:
-            - s (int): Value for the S parameter.
-            - l (int): Value for the L parameter.
-            - bpmin (int): Minimum base pair value.
-            - alpha_choice (str): Choice of alpha configuration.
-            - mu (float): Mean value for the distribution.
-            - theta (float): Standard deviation for the distribution.
-
-    Returns:
-        None: This function does not return any value. It triggers the process defined by `sw_nucleo`.
-
-    Note:
-        - The function assumes that `sw_nucleo` is defined elsewhere in the code and takes the listed parameters.
+    Generates the list of parameter combinations from the configuration.
     """
-    # Unpack parameters from the input tuple
-    alpha_choice, s, l, bpmin, mu, theta, lmbda, alphao, alphaf, beta, rtot_bind, rtot_rest, nt, path = params
+    geometry = cfg['geometry']
+    probas = cfg['probas']
+    rates = cfg['rates']
+    meta = cfg['meta']
 
-    # Getting the verification on inputs
-    checking_inputs(
-        alpha_choice=alpha_choice, s=s, l=l, bpmin=bpmin, 
-        mu=mu, theta=theta, lmbda=lmbda, alphao=alphao, alphaf=alphaf, beta=beta,
-        nt=nt,
-        Lmin=Lmin, Lmax=Lmax, bps=bps, origin=origin,
-        tmax=tmax, dt=dt
+    keys = ['alpha_choice', 's', 'l', 'bpmin', 'mu', 'theta', 'lmbda', 'alphao', 'alphaf', 'beta', 'rtot_bind', 'rtot_rest']
+    values = product(
+        geometry['alpha_choice'], geometry['s'], geometry['l'], geometry['bpmin'],
+        probas['mu'], probas['theta'], probas['lmbda'],
+        probas['alphao'], probas['alphaf'], probas['beta'],
+        rates['rtot_bind'], rates['rtot_rest']
     )
 
-    # Call the `sw_nucleo` function with the given parameters
-    sw_nucleo(alpha_choice, s, l, bpmin, mu, theta, lmbda, alphao, alphaf, beta, rtot_bind, rtot_rest, nt, path, Lmin, Lmax, bps, origin, tmax, dt)
-
-    return None
-
-
-def execute_in_parallel(config: str, execution_mode: str) -> None:
-    """
-    Launch all processes in parallel depending on the execution mode.
-
-    Args:
-        config (str): Configuration identifier to select the study parameters. 
-            Possible values depend on the `choose_configuration` function.
-        execution_mode (str): Specifies the execution environment. 
-            Possible values:
-                - 'PSMN': Execution on a cluster with multiple nodes.
-                - 'PC': Execution locally on a single node with progress tracking.
-                - 'TEST': Testing mode with no processes launched.
-
-    Returns:
-        None: This function does not return any value.
-
-    Note:
-        - The function divides the parameter list into tasks based on the task ID and total number of tasks.
-        - A working directory is created for each task to isolate its execution environment.
-        - The number of processes used in parallel is defined by `num_cores_used` (for 'PSMN') 
-          or set manually (for 'PC').
-
-    Raises:
-        Exception: Captures and logs any exceptions raised during process execution.
-    """
-    # Inputs
-    alpha_choice_values, s_values, l_values, bpmin_values, mu_values, theta_values, lmbda_values, alphao, alphaf, beta, rtot_bind_values, rtot_rest_values, nt, path = choose_configuration(config)
-
-    # Generate the list of parameters for all combinations
-    params_list = [
-        (alpha_choice, s, l, bpmin, mu, theta, lmbda, alphao, alphaf, beta, rtot_bind, rtot_rest, nt, path)
-        for alpha_choice in alpha_choice_values
-        for s in s_values
-        for l in l_values
-        for bpmin in bpmin_values
-        for mu in mu_values
-        for theta in theta_values
-        for lmbda in lmbda_values
-        for rtot_bind in rtot_bind_values
-        for rtot_rest in rtot_rest_values
+    return [
+        dict(zip(keys, vals)) | {"nt": meta['nt'], "path": meta['path']}
+        for vals in values
     ]
 
-    # Divide the parameter list into chunks for parallel execution
-    chunk_size = len(params_list) // num_tasks
-    start = task_id * chunk_size
-    end = start + chunk_size if task_id < num_tasks - 1 else len(params_list)
-    params_list_task = params_list[start:end]
 
-    # Set up the working environment for the current task
-    folder_name = f"{path}_{task_id}"
-    set_working_environment(subfolder=folder_name)
+def run_parallel(params: list[dict], chromatin: dict, time: dict, num_workers: int, use_tqdm: bool = False) -> None:
+    """
+    Exécute les fonctions en parallèle avec ou sans barre de progression.
+    """
+    process = partial(process_function, chromatin=chromatin, time=time)
 
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        futures = [executor.submit(process, p) for p in params]
+        iterator = tqdm(as_completed(futures), total=len(futures), desc="Processing") if use_tqdm else as_completed(futures)
 
-    # --- Execution modes --- #
-
-    # Execution on a cluster (PSMN) -> /Xnfs/physbiochrom/npellet/nucleo_folder_Xnfs/
-    if execution_mode == 'PSMN':
-        num_processes = num_cores_used
-
-        with ProcessPoolExecutor(max_workers=num_processes) as executor:
-            futures = {executor.submit(process_function, params): params for params in params_list_task}
-            for future in as_completed(futures):
-                try:
-                    future.result()
-                except Exception as e:
-                    print(f"Process failed with exception: {e}")
-        return None
-
-    # Execution locally on PC -> /home/nicolas/Documents/Progs/
-    if execution_mode == 'PC':
-        # num_processes = 2
-        num_processes = 12
-
-        with ProcessPoolExecutor(max_workers=num_processes) as executor:
-            futures = {executor.submit(process_function, params): params for params in params_list}
-            for future in tqdm(as_completed(futures), total=len(futures), desc="Processing"):
-                try:
-                    future.result()
-                except Exception as e:
-                    print(f"Process failed with exception: {e}")
-        return None
-    
-    if execution_mode == 'SNAKEVIZ':
-        folder_path = os.path.join(os.getcwd(), f"/home/nicolas/tests/{path}_{task_id}")
-        set_working_environment(folder_path)
-        for params in tqdm(params_list, desc="Processing sequentially"):
+        for future in iterator:
             try:
-                process_function(params)
+                future.result()
             except Exception as e:
                 print(f"Process failed with exception: {e}")
-        return None
+
+
+def run_sequential(params: list[dict], chromatin: dict, time: dict, folder_path: str) -> None:
+    """
+    Exécute les fonctions séquentiellement (utile pour profiling ou debug).
+    """
+    process = partial(process_function, chromatin=chromatin, time=time)
+    set_working_environment(folder_path)
+
+    for p in tqdm(params, desc="Processing sequentially"):
+        try:
+            process(p)
+        except Exception as e:
+            print(f"Process failed with exception: {e}")
+
+
+def execute_in_parallel(config: str, execution_mode: str, slurm_params: dict) -> None:
+    """
+    Launches multiple processes based on selected configuration and execution mode.
+    """
+    cfg = choose_configuration(config)
+    chromatin = cfg["chromatin"]
+    time = cfg["time"]
+
+    all_params = generate_param_combinations(cfg)
+
+    # Split tasks by SLURM
+    task_id = slurm_params['task_id']
+    num_tasks = slurm_params['num_tasks']
+    task_params = np.array_split(all_params, num_tasks)[task_id]
+
+    # Create working dir
+    folder_name = f"{cfg['meta']['path']}_{task_id}"
+    set_working_environment(subfolder=folder_name)
+
+    # Execution modes
+    if execution_mode == 'PSMN':
+        run_parallel(task_params, chromatin, time, num_workers=slurm_params['num_cores_used'])
+
+    elif execution_mode == 'PC':
+        run_parallel(all_params, chromatin, time, num_workers=12, use_tqdm=True)
+
+    elif execution_mode == 'SNAKEVIZ':
+        folder_path = f"/home/nicolas/tests/{folder_name}"
+        run_sequential(all_params, chromatin, time, folder_path)
+
+    else:
+        raise ValueError(f"Unknown execution mode: {execution_mode}")
 
 
 # ================================================
@@ -2504,46 +2722,53 @@ def execute_in_parallel(config: str, execution_mode: str) -> None:
 # ================================================
 
 
-# 4.1 : Slurm parameters
-num_cores_used = int(os.getenv('SLURM_CPUS_PER_TASK', '1'))
-num_tasks = int(os.getenv('SLURM_NTASKS', '1'))
-task_id = int(os.getenv('SLURM_PROCID', '0'))
+# ─────────────────────────────────────────────
+# 4.1. SLURM environment parsing
+# ─────────────────────────────────────────────
 
+def get_slurm_params():
+    return {
+        'num_cores_used': int(os.getenv('SLURM_CPUS_PER_TASK', '1')),
+        'num_tasks': int(os.getenv('SLURM_NTASKS', '1')),
+        'task_id': int(os.getenv('SLURM_PROCID', '0'))
+    }
 
-# 4.2 : Main function
+# ─────────────────────────────────────────────
+# 4.2. Execution parameters
+# ─────────────────────────────────────────────
+
+# Options: PSMN / PC / SNAKEVIZ
+EXE_MODE = "PC"
+
+# Options: NU / BP / LSLOW / LSHIGH / MAP / TEST
+CONFIG = "NU"
+
+# ─────────────────────────────────────────────
+# 4.3. Main function
+# ─────────────────────────────────────────────
+
 def main():
     print('\n#- Launched -#\n')
     start_time = time.time()
-    initial_adress = Path.cwd()
+    initial_address = Path.cwd()
 
-    config = 'TEST'      # NU / BP / LSLOW / LSHIGH / TEST / MAP
-    exe = 'PC'          # PSMN / PC / SNAKEVIZ
+    slurm_env = get_slurm_params()
+    print(f"SLURM ENV → {slurm_env}")
 
     try:
-        execute_in_parallel(config, exe)
+        execute_in_parallel(CONFIG, EXE_MODE, slurm_env)
     except Exception as e:
-        print(f"Process failed: {e}")
+        print(f"[ERROR] Process failed: {e}")
 
-    os.chdir(initial_adress)
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    print(f'\n#- Finished in {int(elapsed_time // 60)}m at {initial_adress} -#\n')
+    os.chdir(initial_address)
+    elapsed = time.time() - start_time
+    print(f'\n#- Finished in {int(elapsed // 60)}m at {initial_address} -#\n')
 
+# ─────────────────────────────────────────────
+# 4.4 Entry point
+# ─────────────────────────────────────────────
 
-# 4.3 : Main launch
 if __name__ == '__main__':
-
-    # Chromatin
-    Lmin = 0            # First point of chromatin (included !)
-    Lmax = 50_000       # Last point of chromatin (excluded !)
-    bps = 1             # Based pair step 1 per 1
-    origin = 10_000     # Falling point of condensin on chromatin
-
-    # Time
-    tmax = 100          # Total time of modeling : 0 is taken into account
-    dt = 1              # Step of time
-
-    # Call
     main()
 
 
