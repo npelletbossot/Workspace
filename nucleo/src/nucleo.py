@@ -1663,7 +1663,7 @@ def writing_parquet(file:str, title: str, data_result: dict, data_info = False) 
     return None
 
 
-def inspect_data_types(data: dict) -> None:
+def inspect_data_types(data: dict, launch = True) -> None:
     """
     Inspect and print the types and dimensions of values in a dictionary.
 
@@ -1677,13 +1677,14 @@ def inspect_data_types(data: dict) -> None:
     Returns:
         None
     """
-    for key, value in data.items():
-        if isinstance(value, np.ndarray):
-            print(f"Key: {key}, Dimensions: {value.shape}")     # Check if the value is a NumPy array
-        elif isinstance(value, list):
-            print(f"Key: {key}, Length: {len(value)}")          # Check if the value is a list
-        else:
-            print(f"Key: {key}, Type: {type(value)}")           # Other types
+    if launch:
+        for key, value in data.items():
+            if isinstance(value, np.ndarray):
+                print(f"Key: {key}, Dimensions: {value.shape}")     # Check if the value is a NumPy array
+            elif isinstance(value, list):
+                print(f"Key: {key}, Length: {len(value)}")          # Check if the value is a list
+            else:
+                print(f"Key: {key}, Type: {type(value)}")           # Other types
     return None
 
 
@@ -2216,7 +2217,7 @@ def sw_nucleo(
     tbj_points, tbj_distrib = calculate_timejump_distribution(t_matrix)
 
     # First pass times
-    # fpt_distrib_2D, fpt_number = calculate_fpt_matrix(t_matrix, x_matrix, tmax, bin_fpt)
+    fpt_distrib_2D, fpt_number = calculate_fpt_matrix(t_matrix, x_matrix, tmax, bin_fpt)
 
     # ------------------- Analysis 2 : Speeds + Rates ------------------- #
 
@@ -2240,59 +2241,138 @@ def sw_nucleo(
     # Currently studying speeds in order to verify  
     # (HEREEE : work again on this section)
     # The definition is maybe not good + we are not using here what we found eralier on dweel times
-    # v_th = theoretical_speed(alphaf, alphao, s, l, mu, lmbda, rtot_bind, rtot_rest)
-    # fb_y, fr_y, rb_y, rr_y = calculate_nature_jump_distribution(t_matrix, x_matrix, t_fb, t_lb, t_bw)
-    # tau_fb, tau_fr, tau_rb, tau_rr = extracting_taus(fb_y, fr_y, rb_y, rr_y, t_bins)
-    # rtot_bind_fit, rtot_rest_fit = calculating_rates(tau_fb, tau_fr, tau_rb, tau_rr)
-    # v_fit = theoretical_speed(alphaf, alphao, s, l, mu, lmbda, rtot_bind_fit, rtot_rest_fit)
+    v_th = theoretical_speed(alphaf, alphao, s, l, mu, lmbda, rtot_bind, rtot_rest)
+    fb_y, fr_y, rb_y, rr_y = calculate_nature_jump_distribution(t_matrix, x_matrix, t_fb, t_lb, t_bw)
+    tau_fb, tau_fr, tau_rb, tau_rr = extracting_taus(fb_y, fr_y, rb_y, rr_y, t_bins)
+    rtot_bind_fit, rtot_rest_fit = calculating_rates(tau_fb, tau_fr, tau_rb, tau_rr)
+    v_fit = theoretical_speed(alphaf, alphao, s, l, mu, lmbda, rtot_bind_fit, rtot_rest_fit)
 
 
     # ------------------- Writing ------------------- #
 
     if saving == "data":
-        data_result = {                                              
-            'alpha_choice': alpha_choice, 's': s, 'l': l, 'bpmin': bpmin,                               # parameters
-            'mu': mu, 'theta': theta, 'alphao': alphao, 'alphaf': alphaf, 'beta': beta, 'lmbda':lmbda,  # probabilities
-            'rtot_bind': rtot_bind, 'rtot_rest': rtot_rest,                                             # rates
-            'Lmin': Lmin, 'Lmax': Lmax, 'bps': bps,'origin': origin,                                    # chromatin
-            'tmax': tmax, 'dt': dt,                                                                     # time   
-            'nt': nt,                                                                                   # trajectories
+        data_result = {
+            # --- Principal Parameters --- #
+            'alpha_choice'   : alpha_choice,
+            's'              : s,
+            'l'              : l,
+            'bpmin'          : bpmin,
+            'mu'             : mu,
+            'theta'          : theta,
+            'alphao'         : alphao,
+            'alphaf'         : alphaf,
+            'beta'           : beta,
+            'lmbda'          : lmbda,
+            'rtot_bind'      : rtot_bind,
+            'rtot_rest'      : rtot_rest,
 
-            'alpha_mean': alpha_mean,
-            'obs_points':obs_points, 'obs_distrib':obs_distrib,
-            'link_points':link_points, 'link_distrib':link_distrib,
-            'link_view':link_view,
-            
-            'results':results,
-            'results_mean':results_mean, 'results_med':results_med, 'results_std':results_std, 
-            'v_mean':v_mean, 'v_med':v_med,
-            'vf':vf, 'Cf':Cf, 'wf':wf, 
-            'vf_std':vf_std, 'Cf_std':Cf_std, 'wf_std':wf_std,
+            # --- Chromatin Parameters --- #
+            'Lmin'           : Lmin,
+            'Lmax'           : Lmax,
+            'bps'            : bps,
+            'origin'         : origin,
 
-            'xbj_points':xbj_points, 'xbj_distrib':xbj_distrib,
-            'tbj_points':tbj_points, 'tbj_distrib':tbj_distrib,
-            'bin_fpt':bin_fpt, 'fpt_distrib_2D':fpt_distrib_2D, 'fpt_number':fpt_number,
+            # --- Time Parameters --- #
+            'tmax'           : tmax,
+            'dt'             : dt,
+            'nt'             : nt,
 
-            'dx_points':dx_points, 'dx_distrib':dx_distrib, 'dx_mean':dx_mean, 'dx_med':dx_med, 'dx_mp':dx_mp, 
-            'dt_points':dt_points, 'dt_distrib':dt_distrib, 'dt_mean':dt_mean, 'dt_med':dt_med, 'dt_mp':dt_mp, 
-            'vi_points':vi_points, 'vi_distrib':vi_distrib, 'vi_mean':vi_mean, 'vi_med':vi_med, 'vi_mp':vi_mp,
+            # --- Chromatin --- #
+            'alpha_mean'     : alpha_mean,
+            'obs_points'     : obs_points,
+            'obs_distrib'    : obs_distrib,
+            'link_points'    : link_points,
+            'link_distrib'   : link_distrib,
+            'link_view'      : link_view,
 
-            'alpha_0':alpha_0, 
-            'xt_over_t':xt_over_t, 'G':G, 'bound_low':bound_low, 'bound_high':bound_high
+            # --- Results --- #
+            'results'        : results,
+            'results_mean'   : results_mean,
+            'results_med'    : results_med,
+            'results_std'    : results_std,
+            'v_mean'         : v_mean,
+            'v_med'          : v_med,
+            'vf'             : vf,
+            'Cf'             : Cf,
+            'wf'             : wf,
+            'vf_std'         : vf_std,
+            'Cf_std'         : Cf_std,
+            'wf_std'         : wf_std,
+
+            # --- Between Jumps --- #
+            'xbj_points'     : xbj_points,
+            'xbj_distrib'    : xbj_distrib,
+            'tbj_points'     : tbj_points,
+            'tbj_distrib'    : tbj_distrib,
+
+            # --- First Passage Time --- #
+            'bin_fpt'        : bin_fpt,
+            'fpt_distrib_2D' : fpt_distrib_2D,
+            'fpt_number'     : fpt_number,
+
+            # --- Instantaneous statistics --- #
+            'dx_points'      : dx_points,
+            'dx_distrib'     : dx_distrib,
+            'dx_mean'        : dx_mean,
+            'dx_med'         : dx_med,
+            'dx_mp'          : dx_mp,
+            'dt_points'      : dt_points,
+            'dt_distrib'     : dt_distrib,
+            'dt_mean'        : dt_mean,
+            'dt_med'         : dt_med,
+            'dt_mp'          : dt_mp,
+            'vi_points'      : vi_points,
+            'vi_distrib'     : vi_distrib,
+            'vi_mean'        : vi_mean,
+            'vi_med'         : vi_med,
+            'vi_mp'          : vi_mp,
+
+            # --- Fits --- #
+            'alpha_0'        : alpha_0,
+            'xt_over_t'      : xt_over_t,
+            'G'              : G,
+            'bound_low'      : bound_low,
+            'bound_high'     : bound_high,
         }
 
     elif saving == "map":
         data_result = {
-            'alpha_choice': alpha_choice, 's': s, 'l': l, 'bpmin': bpmin,                               # parameters
-            'mu': mu, 'theta': theta, 'alphao': alphao, 'alphaf': alphaf, 'beta': beta, 'lmbda':lmbda,  # probabilities
-            'rtot_bind': rtot_bind, 'rtot_rest': rtot_rest,                                             # rates
-            'Lmin': Lmin, 'Lmax': Lmax, 'bps': bps,'origin': origin,                                    # chromatin
-            'tmax': tmax, 'dt': dt,                                                                     # time   
-            'nt': nt,                                                                                   # trajectories
+            # --- Principal Parameters --- #
+            'alpha_choice'   : alpha_choice,
+            's'              : s,
+            'l'              : l,
+            'bpmin'          : bpmin,
+            'mu'             : mu,
+            'theta'          : theta,
+            'alphao'         : alphao,
+            'alphaf'         : alphaf,
+            'beta'           : beta,
+            'lmbda'          : lmbda,
+            'rtot_bind'      : rtot_bind,
+            'rtot_rest'      : rtot_rest,
 
-            'v_mean': v_mean, 'v_th': v_th, 'v_fit': v_fit,
-            'tau_forwards': tau_forwards, 'tau_reverses': tau_reverses
+            # --- Chromatin Parameters --- #
+            'Lmin'           : Lmin,
+            'Lmax'           : Lmax,
+            'bps'            : bps,
+            'origin'         : origin,
+
+            # --- Time Parameters --- #
+            'tmax'           : tmax,
+            'dt'             : dt,
+            'nt'             : nt,
+
+            # --- Speeds and Taus --- #
+            'v_mean'         : v_mean,
+            'v_th'           : v_th,
+            'v_fit'          : v_fit,
+            'tau_forwards'   : tau_forwards,
+            'tau_reverses'   : tau_reverses,
         }
+
+
+    # Types of data registered if needed
+    inspect_data_types(data_result, launch=False)
 
     # Writing data
     writing_parquet(path, title, data_result)

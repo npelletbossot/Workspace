@@ -602,8 +602,8 @@ def compute_bootstrap_std(
 
 def gillespie_algorithm_in_position(
     lenght: int,
-    l_max: int,
-    x_max: int,
+    lmax: int,
+    xmax: int,
     origin: int,
     alpha_matrix: np.ndarray,
     p: np.ndarray,
@@ -615,8 +615,8 @@ def gillespie_algorithm_in_position(
 
     Args:
         lenght (int): Total length of the spatial domain.
-        l_max (int): Maximum jump length.
-        x_max (int): Maximum x position (stopping condition).
+        lmax (int): Maximum jump length.
+        xmax (int): Maximum x position (stopping condition).
         origin (int): Starting x-position.
         alpha_list (np.ndarray): Matrix (nt x total_length) of alpha values.
         p (np.ndarray): Cumulative jump probability array.
@@ -625,7 +625,7 @@ def gillespie_algorithm_in_position(
 
     Returns:
         tuple:
-            - results (np.ndarray): Matrix of shape (nt, x_max + 1), containing time values.
+            - results (np.ndarray): Matrix of shape (nt, xmax + 1), containing time values.
             - all_t (list): List of time series for each trajectory.
             - all_x (list): List of x position series for each trajectory.
             - t_max (float): Maximum time reached across all trajectories.
@@ -638,7 +638,7 @@ def gillespie_algorithm_in_position(
     x_matrix = np.empty(nt, dtype=object)
     
     # Main result matrix (time values per position)
-    results = np.full((nt, x_max + 1), np.nan, dtype=float)
+    results = np.full((nt, xmax + 1), np.nan, dtype=float)
 
     # --- Loop on trajectories --- #
     for n_idx in range(nt):
@@ -653,10 +653,10 @@ def gillespie_algorithm_in_position(
         x_series = [x - origin]
 
         # --- Reaction loop --- #
-        while x < x_max:
+        while x < xmax:
             # Total reaction rate at position x
             r_tot = beta_matrix[n_idx][x] + np.nansum(
-                p[1:(l_max - x)] * alpha_matrix[n_idx][(x + 1):l_max]
+                p[1:(lmax - x)] * alpha_matrix[n_idx][(x + 1):lmax]
             )
 
             # Sample next reaction time
@@ -668,14 +668,14 @@ def gillespie_algorithm_in_position(
             r0 = np.random.rand()
             if r0 < beta_matrix[n_idx][x] / r_tot:
                 i = int(np.floor(x))
-                results[n_idx][i0:int(min(np.floor(x_max), i) + 1)] = t
+                results[n_idx][i0:int(min(np.floor(xmax), i) + 1)] = t
                 break
 
             # Jump decision
             di = 1  # jump starts at 1 (p[0] = 0 by design)
             rp = beta_matrix[n_idx][x] + p[di] * alpha_matrix[n_idx][x + di]
 
-            while (rp / r_tot) < r0 and (di < l_max - 1 - x):
+            while (rp / r_tot) < r0 and (di < lmax - 1 - x):
                 di += 1
                 rp += p[di] * alpha_matrix[n_idx][x + di]
 
@@ -685,8 +685,8 @@ def gillespie_algorithm_in_position(
             x_series.append(x - origin)
 
             # Fill time array
-            i = int(np.floor(x)) if not np.isinf(x) else x_max
-            results[n_idx][i0:int(min(np.floor(x_max), i) + 1)] = t
+            i = int(np.floor(x)) if not np.isinf(x) else xmax
+            results[n_idx][i0:int(min(np.floor(xmax), i) + 1)] = t
             i0 = i + 1
 
         t_matrix[n_idx] = t_series
@@ -757,8 +757,8 @@ def calculate_obs_and_linker_distribution(
 def calculate_main_results_marcand(
     results: np.ndarray,
     alpha_matrix: np.ndarray,
-    x_max: int,
-    x_min: int,
+    xmax: int,
+    xmin: int,
     mu: float,
     plot_results: bool = False
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float, np.ndarray]:
@@ -766,10 +766,10 @@ def calculate_main_results_marcand(
     Calculate all main metrics from Marcand-style simulations.
 
     Args:
-        results (np.ndarray): Time matrix of shape (n_trajectories, x_max + 1).
+        results (np.ndarray): Time matrix of shape (n_trajectories, xmax + 1).
         alpha_matrix (np.ndarray): Landscape matrix (n_trajectories, length).
-        x_max (int): Last position of the obstacle.
-        x_min (int): First position of the obstacle.
+        xmax (int): Last position of the obstacle.
+        xmin (int): First position of the obstacle.
         origin (int): Initial position of the simulation.
         results_wo (np.ndarray): Results from the control (without obstacle).
         plot_results (bool, optional): If True, saves various plots. Default is False.
@@ -778,7 +778,7 @@ def calculate_main_results_marcand(
         tuple: Contains the following computed results:
             - fpt_mean (np.ndarray): Mean first passage time at each position.
             - fpt_2D (np.ndarray): Histogram matrix of all FPTs, normalized per column.
-            - fpt_xmax_distribution (np.ndarray): Distribution of first passage times at x_max.
+            - fpt_xmax_distribution (np.ndarray): Distribution of first passage times at xmax.
             - p_tau (np.ndarray): Cumulative probability of not yet passed (1 - CDF).
             - v_marcand (float): Effective velocity across the obstacle region.
             - delay (np.ndarray): Difference in FPT between obstacle and control.
@@ -788,7 +788,7 @@ def calculate_main_results_marcand(
     results[:, 0] = 0
 
     # Extract normalized obstacle profile from alpha
-    obs_profile = alpha_matrix[0, int(x_min):int(x_max)]
+    obs_profile = alpha_matrix[0, int(xmin):int(xmax)]
     obs_normalized = obs_profile / obs_profile.sum()
 
     # 1. Mean first passage time across trajectories
@@ -797,7 +797,7 @@ def calculate_main_results_marcand(
     # 2. 2D histogram of all FPTs (per column)
     fpt_2D = hist_on_columns(results)
 
-    # 3. Histogram of first passage times at x_max
+    # 3. Histogram of first passage times at xmax
     fpt_xmax_distribution = fpt_2D[-1]
 
     # 4. Cumulative probability of passage
@@ -805,13 +805,13 @@ def calculate_main_results_marcand(
 
     # 5. Effective velocity (mean slope over obstacle region)
     v_th = 1 / mu
-    fpt_wo_xmin = v_th * x_min
-    fpt_wo_xmax = v_th * x_max
-    fpt_mean_xmax = fpt_mean[int(x_max)]
+    fpt_wo_xmin = v_th * xmin
+    fpt_wo_xmax = v_th * xmax
+    fpt_mean_xmax = fpt_mean[int(xmax)]
     v_marcand = (fpt_mean_xmax - fpt_wo_xmin) / (fpt_wo_xmax - fpt_wo_xmin)
 
-    # obstacle_length = x_max - x_min
-    # random_pos = np.random.randint(int(x_min / 4), int(x_min / 2) + 1)
+    # obstacle_length = xmax - xmin
+    # random_pos = np.random.randint(int(xmin / 4), int(xmin / 2) + 1)
     # lower_bound = random_pos - obstacle_length
     # upper_bound = random_pos + obstacle_length
     # baseline_slope = linear_fit(
@@ -820,7 +820,7 @@ def calculate_main_results_marcand(
     #     start_index=lower_bound,
     #     end_index=upper_bound
     # )
-    # v_marcand = (fpt_mean[int(x_max)] - fpt_mean[int(x_min)]) / baseline_slope
+    # v_marcand = (fpt_mean[int(xmax)] - fpt_mean[int(xmin)]) / baseline_slope
 
 
     # 6. Delay: how much the obstacle slows things down
@@ -848,7 +848,7 @@ def calculate_main_results_marcand(
 
         plt.figure("fpt_xmax_distribution")
         plt.plot(fpt_xmax_distribution)
-        plt.title("FPT Distribution at x_max")
+        plt.title("FPT Distribution at xmax")
         plt.savefig("fpt_xmax_distribution.png")
 
         plt.figure("p_tau")
@@ -966,8 +966,8 @@ def calculate_fpt_matrix(matrix_t: np.ndarray, matrix_x: np.ndarray, tmax: int, 
             - fpt_number (np.ndarray): Number of trajectories that reached the positions.
     """
     
-    x_max = int(np.max(np.concatenate(matrix_x)))
-    n_bins = int(np.ceil(x_max / t_bin))
+    xmax = int(np.max(np.concatenate(matrix_x)))
+    n_bins = int(np.ceil(xmax / t_bin))
     fpt_matrix = np.zeros((int(tmax + 1), n_bins))
     translated_all_x = [[x - sublist[0] for x in sublist] for sublist in matrix_x]
 
@@ -1205,7 +1205,7 @@ def writing_parquet(file:str, title: str, data_result: dict) -> None:
     return None
 
 
-def inspect_data_types(data: dict) -> None:
+def inspect_data_types(data: dict, launch=True) -> None:
     """
     Inspect and print the types and dimensions of values in a dictionary.
 
@@ -1219,13 +1219,14 @@ def inspect_data_types(data: dict) -> None:
     Returns:
         None
     """
-    for key, value in data.items():
-        if isinstance(value, np.ndarray):
-            print(f"Key: {key}, Dimensions: {value.shape}")     # Check if the value is a NumPy array
-        elif isinstance(value, list):
-            print(f"Key: {key}, Length: {len(value)}")          # Check if the value is a list
-        else:
-            print(f"Key: {key}, Type: {type(value)}")           # Other types
+    if launch :
+        for key, value in data.items():
+            if isinstance(value, np.ndarray):
+                print(f"Key: {key}, Dimensions: {value.shape}")     # Check if the value is a NumPy array
+            elif isinstance(value, list):
+                print(f"Key: {key}, Length: {len(value)}")          # Check if the value is a list
+            else:
+                print(f"Key: {key}, Type: {type(value)}")           # Other types
     return None
 
 
@@ -1237,120 +1238,165 @@ def inspect_data_types(data: dict) -> None:
 def sw_marcand(alpha_choice, gap, bpmin, alphaf, alphao, mu, theta, origin, nt, path):
 
 
-    # --- Initialization --- #
+    # ------------------- Initialization ------------------- #
 
     # File
     title = f'alphachoice={alpha_choice}_gap={int(gap)}_mu={int(mu)}_theta={int(theta)}_nt={nt}'
-    if not os.path.exists(title):
-        os.mkdir(title)
+    os.makedirs(title, exist_ok=True)
 
-    # Constants 
-    N = 8            # number of groups of 2 obstacles : 16 in total
-    rap1_l = 14     # size in base pairs of rap1 obstacles
-    lacO_l = 24     # size in base pairs of lacO obstacles
-    bps = 1                                                                                      # based pair step 1 per 1
-    c_bp = 3                                                                                         # depends on naked dna or chromatin : 3 for naked vs 25 for chromatin
-    lp_dna = 100                                                                                     # persistence lenght
-    beta = 0                                                                                         # beta
-    dt = 1                                                                                           # step of time
+    # Constants
+    N        = 8          # Number of groups of 2 obstacles : 16 total
+    rap1_l   = 14         # Size (bp) of rap1 obstacles
+    lacO_l   = 24         # Size (bp) of lacO obstacles
+    bps      = 1          # Base-pair step (1 per 1)
+    c_bp     = 3          # 3 for naked DNA vs 25 for chromatin
+    lp_dna   = 100        # Persistence length
+    beta     = 0
+    dt       = 1          # Time step
 
-    
-    # Chromatin    
+    # Chromatin setup
+    lmin     = 0
+    xmin     = 2000
+    d        = xmin - lmin
+    D        = xmin
 
-    # Input values for the all landscape
-    l_min = 0                                   # first point of chromatin
-    x_min = 2000                                # first point of obstacle
-    d = x_min - l_min                           # distance between first point of chromatin and first point of obstacle    
-    D = x_min                                   # lenght after array
+    # Landscape matrix
+    alpha_matrix = calculate_landscape(
+        alpha_choice, alphaf, d, D, alphao, gap, rap1_l, lacO_l, N, bpmin, nt
+    )
+    alpha_mean   = np.mean(alpha_matrix, axis=0)
 
-    # All landscape
-    alpha_matrix = calculate_landscape(alpha_choice, alphaf, d, D, alphao, gap, rap1_l, lacO_l, N, bpmin, nt)
-    alpha_mean = np.mean(alpha_matrix, axis=0)
-
-    # Details
+    # Dimensions
     lenght_array = len(alpha_matrix[0]) - d - D
-    x_max = x_min + lenght_array
-    l_max = len(alpha_matrix[0])
-
-    # Total
-    L = np.arange(l_min, l_max, bps)        # All chromatin positions / Probability distribution on this interval
+    xmax         = xmin + lenght_array
+    lmax         = len(alpha_matrix[0])
+    L            = np.arange(lmin, lmax, bps)
     total_lenght = len(L)
 
-    # Fixed analysis parameters
-    bin_fpt = int(1)    # Bins on times during the all analysis
-    tf = int(1000)      # Maximum times fixed in order to not map until 1e100
+    # Fixed analysis parameters
+    bin_fpt = 1
+    tf      = 1000  # Max simulation time
 
-    
-    # --- Simulation --- #
 
-    # Landscape
-    obs_points, obs_distrib, link_points, link_distrib = calculate_obs_and_linker_distribution(alpha_matrix[0], alphao, alphaf)
+    # ------------------- Simulation ------------------- #
 
-    # Probabilities
+    # Chromatin structure
+    obs_points, obs_distrib, link_points, link_distrib = calculate_obs_and_linker_distribution(
+        alpha_matrix[0], alphao, alphaf
+    )
+
+    # Jump probabilities
     p = proba_gamma(mu, theta, L)
 
-    # Modelling
-    results, t_matrix, x_matrix, tmax  = gillespie_algorithm_in_position(total_lenght, l_max, x_max, origin, alpha_matrix, p, beta, nt)
+    # Gillespie simulation in position space
+    results, t_matrix, x_matrix, tmax = gillespie_algorithm_in_position(
+        total_lenght, lmax, xmax, origin, alpha_matrix, p, beta, nt
+    )
 
-    # Results
-    fpt_mean, fpt_2D, fpt_x_max_distrib, p_tau, v_marcand, delay = calculate_main_results_marcand(results, alpha_matrix, x_max, x_min, mu)
 
-    # Times
-    fpt_distrib_2D, fpt_number = calculate_fpt_matrix(t_matrix, x_matrix, tmax=tf, t_bin=bin_fpt, nt=nt)
+    # ------------------- Analysis 1 : Main results + FPT + Waiting times ------------------- #
 
-    # Waiting times
+    # Main metrics (Marcand-style)
+    fpt_mean, fpt_2D, fpt_xmax_1D, p_tau, v_marcand, delay = calculate_main_results_marcand(
+        results, alpha_matrix, xmax, xmin, mu
+    )
+
+    # First-passage time matrix
+    fpt_distrib_2D, fpt_number = calculate_fpt_matrix(
+        t_matrix, x_matrix, tmax=tf, t_bin=bin_fpt, nt=nt
+    )
+
+    # Time between jumps
     tbj_points, tbj_distrib = calculate_distrib_tbjs(t_matrix)
 
-    # Speeds
-    dx_points, dx_distrib, dx_mean, dx_med, dx_mp, dt_points, dt_distrib, dt_mean, dt_med, dt_mp, vi_points, vi_distrib, vi_mean, vi_med, vi_mp = calculate_instantaneous_statistics(t_matrix, x_matrix, nt)
+
+    # ------------------- Analysis 2 : Instantaneous statistics ------------------- #
+
+    dx_points, dx_distrib, dx_mean, dx_med, dx_mp, \
+    dt_points, dt_distrib, dt_mean, dt_med, dt_mp, \
+    vi_points, vi_distrib, vi_mean, vi_med, vi_mp = calculate_instantaneous_statistics(
+        t_matrix, x_matrix, nt
+    )
 
 
-    # --- Writing --- #
+    # ------------------- Writing ------------------- #
 
-    # First cleaning
-    del alpha_matrix, t_matrix, x_matrix
-    gc.collect()
-
-    # Composing the main result that will be written
     data_result = {
-        'alpha_choice': alpha_choice, 'gap':gap, 'bpmin':bpmin, 'mu':mu, 'theta':theta, 
-        'nt':nt, 'dt':dt, 'N':N, 
-        'alphao': alphao, 'alphaf': alphaf, 'beta': beta, 
-        'total_lenght':total_lenght, 'origin': origin, 'bps': bps,
+        # --- Parameters --- #
+        'alpha_choice'   : alpha_choice,
+        'gap'            : gap,
+        'bpmin'          : bpmin,
+        'mu'             : mu,
+        'theta'          : theta,
+        'nt'             : nt,
+        'dt'             : dt,
+        'N'              : N,
+        'alphao'         : alphao,
+        'alphaf'         : alphaf,
+        'beta'           : beta,
+        'total_lenght'   : total_lenght,
+        'origin'         : origin,
+        'bps'            : bps,
 
-        'alpha_mean': alpha_mean,
-        'obs_points':obs_points, 'obs_distrib':obs_distrib,
-        'link_points':link_points, 'link_distrib':link_distrib,
+        # --- Chromatin --- #
+        'alpha_mean'     : alpha_mean,
+        'obs_points'     : obs_points,
+        'obs_distrib'    : obs_distrib,
+        'link_points'    : link_points,
+        'link_distrib'   : link_distrib,
 
-        'p':p,
+        # --- Probabilities --- #
+        'p'              : p,
 
-        'results':results,
-        'fpt_mean':fpt_mean, 'fpt_2D':fpt_2D, 'fpt_x_max_distrib':fpt_x_max_distrib, 'p_tau':p_tau, 'v_marcand':v_marcand, 'delay':delay,
+        # --- Résults --- #
+        'results'        : results,
+        'fpt_mean'       : fpt_mean,
+        'fpt_2D'         : fpt_2D,
+        'fpt_xmax_1D'    : fpt_xmax_1D,
+        'p_tau'          : p_tau,
+        'v_marcand'      : v_marcand,
+        'delay'          : delay,
 
-        'bin_fpt':bin_fpt, 'fpt_distrib_2D':fpt_distrib_2D, 'fpt_number':fpt_number,
+        # --- First Passage Times --- #
+        'bin_fpt'        : bin_fpt,
+        'fpt_distrib_2D' : fpt_distrib_2D,
+        'fpt_number'     : fpt_number,
 
-        'tbj_points':tbj_points, 'tbj_distrib':tbj_distrib,
+        # --- Times Between Jumps --- #
+        'tbj_points'     : tbj_points,
+        'tbj_distrib'    : tbj_distrib,
 
-        'dx_points':dx_points, 'dx_distrib':dx_distrib, 'dx_mean':dx_mean, 'dx_med':dx_med, 'dx_mp':dx_mp, 
-        'dt_points':dt_points, 'dt_distrib':dt_distrib, 'dt_mean':dt_mean, 'dt_med':dt_med, 'dt_mp':dt_mp, 
-        'vi_points':vi_points, 'vi_distrib':vi_distrib, 'vi_mean':vi_mean, 'vi_med':vi_med, 'vi_mp':vi_mp,
+        # --- Instantaneous statistics --- #
+        'dx_points'      : dx_points,
+        'dx_distrib'     : dx_distrib,
+        'dx_mean'        : dx_mean,
+        'dx_med'         : dx_med,
+        'dx_mp'          : dx_mp,
+
+        'dt_points'      : dt_points,
+        'dt_distrib'     : dt_distrib,
+        'dt_mean'        : dt_mean,
+        'dt_med'         : dt_med,
+        'dt_mp'          : dt_mp,
+
+        'vi_points'      : vi_points,
+        'vi_distrib'     : vi_distrib,
+        'vi_mean'        : vi_mean,
+        'vi_med'         : vi_med,
+        'vi_mp'          : vi_mp,
     }
 
-    # # Types of data registered if needed
-    # inspect_data_types(data_result)
+    # Types of data registered if needed
+    inspect_data_types(data_result, launch=False)
 
     # Writing event
     writing_parquet(path, title, data_result)
 
-    # Second cleaning
-    for key in list(data_result.keys()):
-        del data_result[key]
-        if key in locals():
-            del locals()[key]
-    del data_result 
+    # Clean raw datas
+    del alpha_matrix
+    del data_result
     gc.collect()
 
-    # Done
     return None
 
 
