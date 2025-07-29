@@ -314,7 +314,7 @@ def calculate_landscape(
         landscape = np.tile(np.array(base_pattern), (nt, 1))
 
     # ---- III : Constant value (mean) ---- #
-    elif alpha_choice == 'constant':
+    elif alpha_choice == 'flat':
         landscape = np.full((nt, unit_length), fill_value=unit_mean)
 
     # ---- IV : Constant max value ---- #
@@ -604,11 +604,11 @@ def gillespie_algorithm_in_position(
     lenght: int,
     lmax: int,
     xmax: int,
-    origin: int,
     alpha_matrix: np.ndarray,
     p: np.ndarray,
     beta: float,
     nt: int,
+    xo: int
 ) -> tuple[np.ndarray, list, list, float]:
     """
     Simulate a stochastic Gillespie algorithm with a custom reaction landscape over multiple trajectories.
@@ -642,7 +642,8 @@ def gillespie_algorithm_in_position(
 
     # --- Loop on trajectories --- #
     for n_idx in range(nt):
-        results[n_idx][0] = 0  # initial time at x=0
+        results[n_idx][0] = 0                       # initial time
+        origin = np.random.randint(low=0, high=xo)  # initial position
 
         t = 0
         i = 0
@@ -759,7 +760,6 @@ def calculate_main_results_marcand(
     alpha_matrix: np.ndarray,
     xmax: int,
     xmin: int,
-    mu: float,
     plot_results: bool = False
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float, np.ndarray]:
     """
@@ -770,8 +770,6 @@ def calculate_main_results_marcand(
         alpha_matrix (np.ndarray): Landscape matrix (n_trajectories, length).
         xmax (int): Last position of the obstacle.
         xmin (int): First position of the obstacle.
-        origin (int): Initial position of the simulation.
-        results_wo (np.ndarray): Results from the control (without obstacle).
         plot_results (bool, optional): If True, saves various plots. Default is False.
 
     Returns:
@@ -803,29 +801,18 @@ def calculate_main_results_marcand(
     # 4. Cumulative probability of passage
     p_tau = 1 - np.cumsum(fpt_xmax_distribution)
 
-    # 5. Effective velocity (mean slope over obstacle region)
-    v_th = 1 / mu
-    fpt_wo_xmin = v_th * xmin
-    fpt_wo_xmax = v_th * xmax
+    # 5. Effective velocity (mean slope over obstacle region) - fitting on the spectrum of p values
+    lower_bound = 1000 - 500
+    upper_bound = 1000 + 500
+    interval = np.arange(lower_bound, upper_bound, 1)
+    afit, bfit = np.polyfit(x=interval, y=fpt_mean[lower_bound:upper_bound], deg=1)
+    fpt_wo_xmin = afit * xmin + bfit
+    fpt_wo_xmax = afit * xmax + bfit
     fpt_mean_xmax = fpt_mean[int(xmax)]
     v_marcand = (fpt_mean_xmax - fpt_wo_xmin) / (fpt_wo_xmax - fpt_wo_xmin)
 
-    # obstacle_length = xmax - xmin
-    # random_pos = np.random.randint(int(xmin / 4), int(xmin / 2) + 1)
-    # lower_bound = random_pos - obstacle_length
-    # upper_bound = random_pos + obstacle_length
-    # baseline_slope = linear_fit(
-    #     values=fpt_mean,
-    #     time_step=1,
-    #     start_index=lower_bound,
-    #     end_index=upper_bound
-    # )
-    # v_marcand = (fpt_mean[int(xmax)] - fpt_mean[int(xmin)]) / baseline_slope
-
-
     # 6. Delay: how much the obstacle slows things down
-    # delay = fpt_mean - np.nanmean(results_wo, axis=0)
-    delay = fpt_mean - np.mean(v_th * np.arange(0, len(results[0]), 1), axis=0)
+    delay = fpt_mean - np.mean(afit * np.arange(0, len(results[0]), 1) + bfit, axis=0)
 
     # -------------------- Optional plots -------------------- #
     if plot_results:
@@ -1235,7 +1222,7 @@ def inspect_data_types(data: dict, launch=True) -> None:
 # ================================================
 
 
-def sw_marcand(alpha_choice, gap, bpmin, alphaf, alphao, mu, theta, origin, nt, path):
+def sw_marcand(alpha_choice, gap, bpmin, alphaf, alphao, mu, theta, nt, path):
 
 
     # ------------------- Initialization ------------------- #
@@ -1276,7 +1263,8 @@ def sw_marcand(alpha_choice, gap, bpmin, alphaf, alphao, mu, theta, origin, nt, 
     # Fixed analysis parameters
     bin_fpt = 1
     tf      = 1000  # Max simulation time
-
+    xo      = int(2 * np.sqrt(mu * theta))
+    
 
     # ------------------- Simulation ------------------- #
 
@@ -1290,7 +1278,7 @@ def sw_marcand(alpha_choice, gap, bpmin, alphaf, alphao, mu, theta, origin, nt, 
 
     # Gillespie simulation in position space
     results, t_matrix, x_matrix, tmax = gillespie_algorithm_in_position(
-        total_lenght, lmax, xmax, origin, alpha_matrix, p, beta, nt
+        total_lenght, lmax, xmax, alpha_matrix, p, beta, nt, xo
     )
 
 
@@ -1298,7 +1286,7 @@ def sw_marcand(alpha_choice, gap, bpmin, alphaf, alphao, mu, theta, origin, nt, 
 
     # Main metrics (Marcand-style)
     fpt_mean, fpt_2D, fpt_xmax_1D, p_tau, v_marcand, delay = calculate_main_results_marcand(
-        results, alpha_matrix, xmax, xmin, mu
+        results, alpha_matrix, xmax, xmin, xo
     )
 
     # First-passage time matrix
@@ -1335,8 +1323,8 @@ def sw_marcand(alpha_choice, gap, bpmin, alphaf, alphao, mu, theta, origin, nt, 
         'alphaf'         : alphaf,
         'beta'           : beta,
         'total_lenght'   : total_lenght,
-        'origin'         : origin,
         'bps'            : bps,
+        'xo'             : xo,
 
         # --- Chromatin --- #
         'alpha_mean'     : alpha_mean,
@@ -1419,9 +1407,9 @@ def choose_configuration(config: str):
     # Configurations
     if config == "DATA":
         gap_values = np.arange(5, 35+5, 5)
-        bpmin_values = np.array([0,2])
-        mu_values = np.arange(1, 200+1, 2)
-        theta_values = np.arange(1, 100+1, 2)
+        bpmin_values = np.array([0])
+        mu_values = np.arange(1, 200+1, 1)
+        theta_values = np.arange(1, 100+1, 1)
         nt = 10_000
         path = "mrc_data"
         
@@ -1433,9 +1421,8 @@ def choose_configuration(config: str):
         mu_values = np.array([100])
         # theta_values = np.array([1, 50, 100+1])
         theta_values = np.array([50])
-        nt = 10_000
+        nt = 1_000
         path = "mrc_test"
-        print(os.getcwd())
 
     else:
         raise ValueError(f"Unknown configuration identifier: {config}")
@@ -1448,8 +1435,7 @@ def process_function(params):
     Defines one process
     """
     alpha_choice, gap, bpmin, mu, theta, alphaf, alphao, nt, path,  = params
-    # logging.debug(f'Processing : s={s}, l={l}, bp_min={bp_min}, alpha_choice={alpha_choice}, k={k}, theta={theta}')
-    sw_marcand(alpha_choice, gap, bpmin, alphaf, alphao, mu, theta, origin, nt, path)
+    sw_marcand(alpha_choice, gap, bpmin, alphaf, alphao, mu, theta, nt, path)
     return None
 
 
@@ -1530,7 +1516,7 @@ def main():
     initial_adress = Path.cwd()
 
     config = 'DATA'         # DATA / TEST
-    exe = 'PC'              # PSMN / PC / SNAKEVIZ
+    exe = 'PSMN'              # PSMN / PC / SNAKEVIZ
 
     try:
         execute_in_parallel(config, exe)
@@ -1545,8 +1531,6 @@ def main():
 
 # 4.4 : Main launch
 if __name__ == '__main__':
-
-    origin = 0
 
     main()
 
