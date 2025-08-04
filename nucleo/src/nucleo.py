@@ -1548,7 +1548,7 @@ def fitting_in_two_steps(times, positions, deviations, bound_low=5, bound_high=8
 # ================================================
 
 
-def set_working_environment(base_dir: str = "nucleo/outputs", subfolder: str = "") -> None:
+def set_working_environment(base_dir: str = Path.home() / "Documents" / "PhD" / "Workspace" / "nucleo" / "outputs", subfolder: str = "") -> None:
     """
     Ensure the specified folder exists and change the current working directory to it.
         Check if the folder exists; if not, create it
@@ -1648,6 +1648,7 @@ def writing_parquet(file:str, title: str, data_result: dict, data_info = False) 
 
     # Define the Parquet file path
     data_file_name = os.path.join(title, f'{file}_{title}.parquet')
+    os.makedirs(title, exist_ok=True)
 
     # Prepare the data for Parquet
     prepared_data = {key: [prepare_value(value)] if not isinstance(value, list) else prepare_value(value)
@@ -2144,10 +2145,9 @@ def sw_nucleo(
     title = (
             f"alphachoice={alpha_choice}_s={s}_l={l}_bpmin={bpmin}_"
             f"mu={mu}_theta={theta}_"
-            f"lmbda={lmbda:.2e}_rtotbind={rtot_bind:.2e}_rtotrest={rtot_rest:.2e}_"
+            # f"lmbda={lmbda:.2e}_rtotbind={rtot_bind:.2e}_rtotrest={rtot_rest:.2e}_"
             f"nt={nt}"
             )
-    os.makedirs(title, exist_ok=True)
 
     # Chromatin
     L = np.arange(Lmin, Lmax, bps)
@@ -2239,13 +2239,19 @@ def sw_nucleo(
     # ------------------- Working area ------------------- #
 
     # Currently studying speeds in order to verify  
-    # (HEREEE : work again on this section)
     # The definition is maybe not good + we are not using here what we found eralier on dweel times
     v_th = theoretical_speed(alphaf, alphao, s, l, mu, lmbda, rtot_bind, rtot_rest)
     fb_y, fr_y, rb_y, rr_y = calculate_nature_jump_distribution(t_matrix, x_matrix, t_fb, t_lb, t_bw)
     tau_fb, tau_fr, tau_rb, tau_rr = extracting_taus(fb_y, fr_y, rb_y, rr_y, t_bins)
     rtot_bind_fit, rtot_rest_fit = calculating_rates(tau_fb, tau_fr, tau_rb, tau_rr)
     v_fit = theoretical_speed(alphaf, alphao, s, l, mu, lmbda, rtot_bind_fit, rtot_rest_fit)
+
+    # # Nucleosomic profile close to : "Determinants of nucleosome organization in primary human cells"
+    # plt.figure(figsize=(8,6))
+    # plt.plot(link_view, label="link_view")
+    # plt.grid(True, which="both")
+    # plt.legend()
+    # plt.show()
 
 
     # ------------------- Writing ------------------- #
@@ -2375,7 +2381,7 @@ def sw_nucleo(
     inspect_data_types(data_result, launch=False)
 
     # Writing data
-    writing_parquet(path, title, data_result)
+    writing_parquet(file=path, title=title, data_result=data_result)
 
     # Clean raw datas
     del alpha_matrix
@@ -2648,10 +2654,10 @@ def choose_configuration(config: str) -> dict:
 
         "TEST": {
             "geometry": {
-                "alpha_choice": np.array(['constantmean']),
-                "s": np.array([75], dtype=int),
-                "l": np.array([150], dtype=int),
-                "bpmin": np.array([5], dtype=int)
+                "alpha_choice": np.array(['ntrandom']),
+                "s": np.array([150], dtype=int),
+                "l": np.array([10, 15, 20, 25, 30, 35, 40, 45, 50], dtype=int),
+                "bpmin": np.array([0], dtype=int)
             },
             "probas": {
                 "mu": np.array([300]),
@@ -2666,7 +2672,7 @@ def choose_configuration(config: str) -> dict:
                 "rtot_rest": np.array([RATES["rtot_rest"]], dtype=float)
             },
             "meta": {
-                "nt": 10_000,
+                "nt": 1_000,
                 "path": "ncl_test"
             }
         },
@@ -2754,7 +2760,7 @@ def run_sequential(params: list[dict], chromatin: dict, time: dict, folder_path:
     Exécute les fonctions séquentiellement (utile pour profiling ou debug).
     """
     process = partial(process_function, chromatin=chromatin, time=time)
-    set_working_environment(folder_path)
+    set_working_environment(subfolder=folder_path)
 
     for p in tqdm(params, desc="Processing sequentially"):
         try:
@@ -2787,7 +2793,7 @@ def execute_in_parallel(config: str, execution_mode: str, slurm_params: dict) ->
         run_parallel(task_params, chromatin, time, num_workers=slurm_params['num_cores_used'])
 
     elif execution_mode == 'PC':
-        run_parallel(all_params, chromatin, time, num_workers=12, use_tqdm=True)
+        run_parallel(all_params, chromatin, time, num_workers=5, use_tqdm=True)
 
     elif execution_mode == 'SNAKEVIZ':
         folder_path = f"/home/nicolas/tests/{folder_name}"
@@ -2821,7 +2827,7 @@ def get_slurm_params():
 EXE_MODE = "PC"
 
 # Options: NU / BP / LSLOW / LSHIGH / MAP / TEST
-CONFIG = "NU"
+CONFIG = "TEST"
 
 # ─────────────────────────────────────────────
 # 4.3. Main function
