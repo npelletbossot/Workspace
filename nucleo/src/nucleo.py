@@ -2380,7 +2380,7 @@ def sw_nucleo(
     # Types of data registered if needed
     inspect_data_types(data_result, launch=False)
 
-    # Writing data
+# Writing data
     writing_parquet(file=path, title=title, data_result=data_result)
 
     # Clean raw datas
@@ -2760,7 +2760,6 @@ def run_sequential(params: list[dict], chromatin: dict, time: dict, folder_path:
     Exécute les fonctions séquentiellement (utile pour profiling ou debug).
     """
     process = partial(process_function, chromatin=chromatin, time=time)
-    set_working_environment(subfolder=folder_path)
 
     for p in tqdm(params, desc="Processing sequentially"):
         try:
