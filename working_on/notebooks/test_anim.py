@@ -6,225 +6,317 @@ import pygame
 import imageio
 import numpy as np
 
+# =================== CONFIG GLOBALE =================== #
 
-# ------------------- Configuration ------------------- #
-# --- Grille / affichage --- #
-VISIBLE_CASES   = 30          # nb de cases visibles (fenêtre)
-TOTAL_CASES     = 30 * 5      # longueur totale de la chaîne
-OBSTACLE_COUNT  = 40          # nb de cases inaccessibles
-CASE_SIZE       = 40          # taille d'une case (px)
-
+# --- Affichage & grille --- #
+VISIBLE_CASES   = 10
+TOTAL_CASES     = VISIBLE_CASES * 5
+CASE_SIZE       = 40
 WIDTH           = VISIBLE_CASES * CASE_SIZE
-HEIGHT          = 500
-
-# --- Kymographe (en bas) --- #
-KYM_WIDTH       = WIDTH
-KYM_HEIGHT      = 200
-KYM_Y_OFFSET    = HEIGHT - KYM_HEIGHT
-KYM_ZOOM        = 5           # échelle verticale (px par case)
-KYM_WINDOW      = 300         # nb de points récents à tracer
-
-# --- Animation / logique --- #
+HEIGHT          = 300
 FPS             = 60
-JUMP_MIN        = 1           # taille de saut minimale (en cases)
-JUMP_MAX        = 3           # taille de saut maximale (en cases)
-SECS_PER_JUMP   = 0.60        # durée d'un saut (sec)
-WAIT_MIN        = 0.20        # attente minimale entre sauts (sec)
-WAIT_MAX        = 0.80        # attente maximale entre sauts (sec)
-ARC_BASE        = 0.20        # hauteur de base de l'arc du saut
-ARC_PER_CELL    = 0.10        # bonus de hauteur par case sautée
 
-# --- Enregistrement GIF --- #
-RECORD_GIF      = True
-GIF_PATH        = "animation.gif"
-GIF_FPS         = 30          # fps du GIF de sortie
-
+# --- Kymographe --- #
+KYM_WIDTH       = WIDTH
+KYM_HEIGHT      = HEIGHT
+KYM_ZOOM        = 5
+KYM_WINDOW      = 300
 
 # ------------------- Couleurs ------------------- #
 WHITE     = (255, 255, 255)
 BLACK     = (0,   0,   0)
-GRAY      = (180, 180, 180)   # accessible
-DARK_BLUE = (0,   0, 139)     # inaccessible
+GRAY      = (238, 244, 251)   # accessible (bande)
+DARK_GRAY = (42,  58, 58)     # bouchon
 RED       = (200, 30,  30)
+CAP_COLOR = (42, 58, 58)
+
+# --- Enregistrement (GIF) --- #
+RECORD_GIF          = True
+GIF_PATH            = "animation.gif"      # animation principale
+KYM_GIF_PATH        = "kymographe.gif"     # kymographe séparé
+GIF_FPS             = 30
+
+# ---- Obstacles (optionnels) ---- #
+# 0 = obstacle, 1 = accessible. Si None, tout est accessible.
+# Exemple: OBSTACLE_ARRAY = [1, 1, 0, 1, 1]
+OBSTACLE_ARRAY  = None
+OBSTACLE_ARRAY = [1, 0, 0] * 20
+OBSTACLE_ARRAY = np.random.randint(low=0, high=2, size=TOTAL_CASES)
 
 
-# ------------------- Outils ------------------- #
+# ---- Géométrie verticale (bande collée en bas) ---- #
+BOTTOM_MARGIN   = 20                               # marge visuelle sous la bande
+STRIP_BOTTOM_Y  = HEIGHT - BOTTOM_MARGIN           # y bas de la bande
+STRIP_TOP_Y     = STRIP_BOTTOM_Y - CASE_SIZE       # y haut de la bande (cases collées en bas)
+BALL_RADIUS     = max(6, CASE_SIZE // 4)
+BASELINE_Y      = STRIP_TOP_Y + CASE_SIZE // 2     # centre vertical de la bande
+
+# ---- Arc du saut ---- #
+ARC_BASE        = 0.20
+ARC_PER_CELL    = 0.10
+ARC_GAIN        = 7.0
+
+# ---- Timing fixe ---- #
+SECS_PER_JUMP   = 0.5   # durée d'un saut (constante)
+WAIT_SECS       = 0.5   # attente entre sauts (constante)
+
+# ---- Distance de saut ~ Gamma ---- #
+# Distance (en cases) tirée depuis Gamma(shape=k, scale=mu/k), arrondie >= 1
+JUMP_MU_CELLS   = 2.0   # μ en cases
+JUMP_SHAPE      = 2.0   # k (shape)
+
+
+# --- Kymographe (axes fixes) --- #
+KYM_T_MAX        = 20.0  # secondes affichées (fixe)
+KYM_Y_MIN        = 0
+KYM_Y_MAX        = TOTAL_CASES - 1
+
+# Mise en page / axes
+KYM_MARGIN_LEFT   = 50
+KYM_MARGIN_RIGHT  = 20
+KYM_MARGIN_TOP    = 20
+KYM_MARGIN_BOTTOM = 40
+GRID_COLOR        = (220, 220, 220)
+AXIS_COLOR        = (0, 0, 0)
+TICKS_X           = 6
+TICKS_Y           = 6
+FONT_MAIN_SIZE    = 16
+FONT_TICK_SIZE    = 12
+
+
+
+# =================== OUTILS =================== #
 def clamp(val, a, b):
     return max(a, min(b, val))
 
+def normalize_obstacles_array(arr):
+    if arr is None:
+        return [1] * TOTAL_CASES
+    tmp = [1 if int(v) != 0 else 0 for v in arr]
+    if len(tmp) >= TOTAL_CASES:
+        return tmp[:TOTAL_CASES]
+    else:
+        return tmp + [1] * (TOTAL_CASES - len(tmp))
 
-# ------------------- Initialisation ------------------- #
-pygame.init()
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Chaîne 1D : sauts avec obstacles + kymographe")
-clock = pygame.time.Clock()
-
-# Grille d'accessibilité
-access = [1] * TOTAL_CASES
-access[0] = 1
-access[-1] = 1
-rng = random.Random(42)  # seed pour reproductibilité
-obstacle_pool = list(range(1, TOTAL_CASES - 1))
-rng.shuffle(obstacle_pool)
-for idx in obstacle_pool[:min(OBSTACLE_COUNT, len(obstacle_pool))]:
-    access[idx] = 0
-
-
-# ------------------- État de la simulation ------------------- #
-pos = 0                    # position (index de case)
-jumping = False
-jump_target = None
-jump_progress = 0.0        # [0..1] pendant un saut
-frames_per_jump = max(2, int(SECS_PER_JUMP * FPS))
-jump_step = 1.0 / frames_per_jump
-
-wait_timer = 0.0           # secondes restantes avant prochain saut
-
-trajectory = []            # pour le kymographe (positions dans le temps)
-gif_frames = []            # frames capturées si RECORD_GIF
-
-
-# ------------------- Choix du prochain saut ------------------- #
-def choose_next_target(cur_pos):
-    """
-    Choisit aléatoirement une case cible accessible dans [JUMP_MIN, JUMP_MAX].
-    Si aucune dispo dans cette fenêtre, tente de trouver la prochaine accessible plus loin.
-    """
-    # Candidats dans la fenêtre autorisée
-    candidates = []
-    for step in range(JUMP_MIN, JUMP_MAX + 1):
-        idx = cur_pos + step
-        if idx < TOTAL_CASES and access[idx] == 1:
-            candidates.append(idx)
-
-    if candidates:
-        return rng.choice(candidates)
-
-    # Fallback : cherche la prochaine accessible plus loin (évite blocage)
-    idx = cur_pos + JUMP_MIN
-    while idx < TOTAL_CASES and access[idx] == 0:
-        idx += 1
-    return idx if idx < TOTAL_CASES else cur_pos
-
-
-# ------------------- Dessin ------------------- #
-def draw_scene():
-    screen.fill(WHITE)
-
-    # 1) Bande des cases en haut (centrée verticalement autour de y=100)
-    start_case = clamp(pos - VISIBLE_CASES // 2, 0, TOTAL_CASES - VISIBLE_CASES)
-    # Dessine la fenêtre visible
+def draw_cells_strip(screen, access, start_case):
+    """Bande visible collée en bas + un bouchon coloré au-dessus des inaccessibles (la bande reste GRAY)."""
     for i in range(VISIBLE_CASES):
         idx = start_case + i
-        rect = pygame.Rect(i * CASE_SIZE, 90, CASE_SIZE, 20)
-        color = GRAY if access[idx] else DARK_BLUE
-        pygame.draw.rect(screen, color, rect)
-        pygame.draw.rect(screen, BLACK, rect, 1)
 
-    # 2) Bille (avec interpolation si en saut)
-    if jumping and jump_target is not None:
-        # easing cos pour un mouvement plus doux
-        eased = 0.5 - 0.5 * math.cos(math.pi * jump_progress)
-        # interpolation horizontale en pixels absolus (centres de cases)
-        x0 = pos * CASE_SIZE + CASE_SIZE // 2
-        x1 = jump_target * CASE_SIZE + CASE_SIZE // 2
-        x_abs = (1 - eased) * x0 + eased * x1
+        base_rect = pygame.Rect(i * CASE_SIZE, STRIP_TOP_Y, CASE_SIZE, CASE_SIZE)
+        pygame.draw.rect(screen, GRAY, base_rect)
+        pygame.draw.rect(screen, BLACK, base_rect, 1)
 
-        # arc vertical (en pixels, relatif à une "ligne" à y=100)
-        length = max(1, abs(jump_target - pos))
-        arc_amp = (ARC_BASE + ARC_PER_CELL * length) * CASE_SIZE  # échelle en px
-        y = 100 - arc_amp * (4 * jump_progress * (1 - jump_progress))
+        if 0 <= idx < len(access) and access[idx] == 0:
+            cap_rect = pygame.Rect(i * CASE_SIZE, STRIP_TOP_Y - CASE_SIZE, CASE_SIZE, CASE_SIZE)
+            if cap_rect.bottom > 0:
+                pygame.draw.rect(screen, CAP_COLOR, cap_rect)
+                pygame.draw.rect(screen, BLACK, cap_rect, 1)
 
-        # conversion coord. absolues -> fenêtre visible
-        x_screen = int(x_abs - start_case * CASE_SIZE)
-        pygame.draw.circle(screen, RED, (x_screen, int(y)), 10)
-    else:
-        # bille posée dans sa case
-        x_screen = (pos - start_case) * CASE_SIZE + CASE_SIZE // 2
-        pygame.draw.circle(screen, RED, (x_screen, 100), 10)
+def draw_ball(screen, x_abs_px, y_px, start_case):
+    x_screen = int(x_abs_px - start_case * CASE_SIZE)
+    pygame.draw.circle(screen, RED, (x_screen, int(y_px)), BALL_RADIUS)
 
-    # 3) Kymographe (trace pos(t) sur la fenêtre glissante)
-    if len(trajectory) > 1:
-        start_idx = max(0, len(trajectory) - KYM_WINDOW)
-        points = []
-        scale_x = KYM_WIDTH / KYM_WINDOW
-        for i in range(start_idx, len(trajectory)):
-            x = (i - start_idx) * scale_x
-            y = KYM_Y_OFFSET + KYM_HEIGHT - trajectory[i] * KYM_ZOOM
-            points.append((x, y))
-        if len(points) > 1:
-            pygame.draw.lines(screen, RED, False, points, 2)
+def arc_y(center_y_px, progress_01, jump_len_cells):
+    amp_cells = (ARC_BASE + ARC_PER_CELL * max(1, jump_len_cells)) * ARC_GAIN
+    amp_px = amp_cells * CASE_SIZE
+    return center_y_px - amp_px * (4 * progress_01 * (1 - progress_01))
 
-    pygame.display.flip()
+def sample_jump_length_cells(rng):
+    theta = JUMP_MU_CELLS / JUMP_SHAPE  # scale
+    val = rng.gamma(shape=JUMP_SHAPE, scale=theta)
+    return max(1, int(np.rint(val)))   # arrondi au plus proche, min 1
+
+def render_kymo_surface(trajectory, times):
+    """Kymographe à axes fixes: X=[0, KYM_T_MAX], Y=[KYM_Y_MIN, KYM_Y_MAX]."""
+    surf = pygame.Surface((KYM_WIDTH, KYM_HEIGHT))
+    surf.fill(WHITE)
+
+    # Zone tracé
+    plot_left   = KYM_MARGIN_LEFT
+    plot_right  = KYM_WIDTH - KYM_MARGIN_RIGHT
+    plot_top    = KYM_MARGIN_TOP
+    plot_bottom = KYM_HEIGHT - KYM_MARGIN_BOTTOM
+    plot_w = max(1, plot_right - plot_left)
+    plot_h = max(1, plot_bottom - plot_top)
+
+    # Polices
+    pygame.font.init()
+    font_main = pygame.font.SysFont(None, FONT_MAIN_SIZE)
+    font_tick = pygame.font.SysFont(None, FONT_TICK_SIZE)
+
+    # Fonctions de mapping fixes
+    def x_to_px(t):
+        t_clamped = max(0.0, min(KYM_T_MAX, t))
+        return plot_left + (t_clamped / KYM_T_MAX) * plot_w
+
+    def y_to_px(y):
+        y_clamped = max(KYM_Y_MIN, min(KYM_Y_MAX, y))
+        return plot_top + (KYM_Y_MAX - y_clamped) / (KYM_Y_MAX - KYM_Y_MIN + 1e-9) * plot_h
+
+    # Grille + ticks X (0..KYM_T_MAX)
+    for i in range(TICKS_X + 1):
+        frac = i / TICKS_X
+        t_val = frac * KYM_T_MAX
+        x = int(x_to_px(t_val))
+        pygame.draw.line(surf, GRID_COLOR, (x, plot_top), (x, plot_bottom), 1)
+        pygame.draw.line(surf, AXIS_COLOR, (x, plot_bottom), (x, plot_bottom + 4), 1)
+        lbl = font_tick.render(f"{t_val:.1f}", True, AXIS_COLOR)
+        surf.blit(lbl, (x - lbl.get_width() // 2, plot_bottom + 6))
+
+    # Grille + ticks Y (KYM_Y_MIN..KYM_Y_MAX)
+    for j in range(TICKS_Y + 1):
+        frac = j / TICKS_Y
+        y_val = KYM_Y_MIN + frac * (KYM_Y_MAX - KYM_Y_MIN)
+        y_px = int(y_to_px(y_val))
+        pygame.draw.line(surf, GRID_COLOR, (plot_left, y_px), (plot_right, y_px), 1)
+        pygame.draw.line(surf, AXIS_COLOR, (plot_left - 4, y_px), (plot_left, y_px), 1)
+        lbl = font_tick.render(f"{y_val:.0f}", True, AXIS_COLOR)
+        surf.blit(lbl, (plot_left - 8 - lbl.get_width(), y_px - lbl.get_height() // 2))
+
+    # Courbe (trace progressive sans glissement)
+    if len(trajectory) >= 2 and len(times) >= 2:
+        pts = []
+        for t, y in zip(times, trajectory):
+            if t > KYM_T_MAX:
+                break  # au-delà, on n'affiche plus (axes fixes)
+            pts.append((x_to_px(t), y_to_px(y)))
+        if len(pts) > 1:
+            pygame.draw.lines(surf, RED, False, pts, 2)
+
+    # Cadre + labels
+    pygame.draw.rect(surf, AXIS_COLOR, pygame.Rect(plot_left, plot_top, plot_w, plot_h), 1)
+    xlabel = font_main.render("Time", True, AXIS_COLOR)
+    surf.blit(xlabel, (plot_left + (plot_w - xlabel.get_width()) // 2, KYM_HEIGHT - KYM_MARGIN_BOTTOM + 8))
+    ylabel = font_main.render("Position (bp units)", True, AXIS_COLOR)
+    surf.blit(pygame.transform.rotate(ylabel, 90), (8, plot_top + (plot_h - ylabel.get_height()) // 2))
+    title = font_main.render("Kymograph", True, AXIS_COLOR)
+    surf.blit(title, (plot_left + (plot_w - title.get_width()) // 2, 2))
+
+    return surf
 
 
-# ------------------- Boucle principale ------------------- #
-def main():
-    global pos, jumping, jump_target, jump_progress, wait_timer
+
+# =================== SIMULATION =================== #
+def run_simulation():
+
+    cum_t = 0.0
+    traj_times = []
+
+    rng = np.random.default_rng(123)
+
+    pygame.init()
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    pygame.display.set_caption("Sauts 1D (obstacles optionnels, distance ~ Gamma)")
+    clock = pygame.time.Clock()
+
+    access = normalize_obstacles_array(OBSTACLE_ARRAY)
+
+    # État
+    pos = 0
+    jumping = False
+    jump_target = None
+    jump_progress = 0.0
+    frames_per_jump = max(2, int(SECS_PER_JUMP * FPS))
+    jump_step = 1.0 / frames_per_jump
+    wait_timer = 0.0
+
+    trajectory = []
+    gif_frames_main = []
+    gif_frames_kymo = []
+
+    def choose_next_target(cur_pos):
+        jump_len = sample_jump_length_cells(rng)
+        tgt = min(cur_pos + jump_len, TOTAL_CASES - 1)
+        # évite d'atterrir sur un obstacle -> cherche la prochaine accessible à droite
+        idx = tgt
+        while idx < TOTAL_CASES and access[idx] == 0:
+            idx += 1
+        if idx >= TOTAL_CASES:
+            return cur_pos
+        return idx
 
     running = True
     while running:
-        dt = clock.tick(FPS) / 1000.0  # secondes écoulées
-        # ---- Gestion des événements ---- #
+        dt = clock.tick(FPS) / 1000.0
+        cum_t += dt
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            elif event.type == pygame.KEYDOWN and event.key in (pygame.K_ESCAPE, pygame.K_q):
-                running = False
 
-        # ---- Logique de saut / attente ---- #
         if jumping:
-            # Avancement du saut
             jump_progress += jump_step
             if jump_progress >= 1.0:
-                # Atterrissage
                 pos = jump_target
                 jumping = False
                 jump_target = None
                 jump_progress = 0.0
-                wait_timer = rng.uniform(WAIT_MIN, WAIT_MAX)
+                wait_timer = WAIT_SECS
         else:
             if wait_timer > 0.0:
                 wait_timer -= dt
             else:
-                # Décider du prochain saut (si pas à la fin)
                 if pos < TOTAL_CASES - 1:
                     nxt = choose_next_target(pos)
                     if nxt == pos:
-                        # Aucune issue → fin
                         running = False
                     else:
                         jumping = True
                         jump_target = nxt
                         jump_progress = 0.0
                 else:
-                    # Arrivé au bout
                     running = False
 
-        # ---- Mise à jour kymographe ---- #
+        # --- Rendu principal (bande collée en bas) ---
+        screen.fill(WHITE)
+        start_case = clamp(pos - VISIBLE_CASES // 2, 0, TOTAL_CASES - VISIBLE_CASES)
+        draw_cells_strip(screen, access, start_case)
+
+        if jumping and jump_target is not None:
+            eased = 0.5 - 0.5 * math.cos(math.pi * jump_progress)
+            x0 = pos * CASE_SIZE + CASE_SIZE // 2
+            x1 = jump_target * CASE_SIZE + CASE_SIZE // 2
+            x_abs = (1 - eased) * x0 + eased * x1
+            y = arc_y(center_y_px=BASELINE_Y, progress_01=jump_progress,
+                      jump_len_cells=abs(jump_target - pos))
+            draw_ball(screen, x_abs, y, start_case)
+        else:
+            x_abs = pos * CASE_SIZE + CASE_SIZE // 2
+            draw_ball(screen, x_abs, BASELINE_Y, start_case)
+
+        pygame.display.flip()
+
+        # --- Mémorise position pour le kymo ---
         trajectory.append(pos)
+        traj_times.append(cum_t)
 
-        # ---- Rendu ---- #
-        draw_scene()
 
-        # ---- Capture GIF ---- #
+        # --- Capture des GIFs ---
         if RECORD_GIF:
-            # Pygame: (w,h,3) avec axes (x,y). imageio attend (y,x,3).
+            # animation principale
             frame = pygame.surfarray.array3d(screen)
             frame = np.transpose(frame, (1, 0, 2))
-            gif_frames.append(frame)
+            gif_frames_main.append(frame)
 
-    # Sortie propre
+            # kymographe (surface séparée)
+            kymo_surface = render_kymo_surface(trajectory, traj_times)
+            frame_k = pygame.surfarray.array3d(kymo_surface)
+            frame_k = np.transpose(frame_k, (1, 0, 2))
+            gif_frames_kymo.append(frame_k)
+
     pygame.quit()
 
-    if RECORD_GIF and len(gif_frames) > 0:
-        print("Enregistrement du GIF...")
-        imageio.mimsave(GIF_PATH, gif_frames, fps=GIF_FPS)
-        print(f"GIF enregistré sous '{GIF_PATH}'")
+    if RECORD_GIF:
+        if gif_frames_main:
+            imageio.mimsave(GIF_PATH, gif_frames_main, fps=GIF_FPS)
+            print(f"GIF animation enregistré sous '{GIF_PATH}'")
+        if gif_frames_kymo:
+            imageio.mimsave(KYM_GIF_PATH, gif_frames_kymo, fps=GIF_FPS)
+            print(f"GIF kymographe enregistré sous '{KYM_GIF_PATH}'")
 
-    sys.exit(0)
-
-
-# ------------------- Lancement ------------------- #
+# =================== MAIN =================== #
 if __name__ == "__main__":
-    main()
+    # Exemple obstacles :
+    # OBSTACLE_ARRAY = [1, 1, 0, 1, 1, 0, 1]
+    run_simulation()
