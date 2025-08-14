@@ -18,8 +18,8 @@ fontsize = 16
 
 def ncl_plot_obstacle(s, l, origin, alpha_mean, text_size=fontsize, ax=None):
     ax.set_title(f'Mean obstacle for s={s} and l={l}', size=text_size)
-    ax.plot(alpha_mean, c='b', ls='-', label='mean obstacle')
-    ax.fill_between(np.arange(0, len(alpha_mean), 1), alpha_mean, step='post', color='b', alpha=0.3, label='accessible binding sites')
+    ax.plot(alpha_mean, c='b', ls='-', label='mean obstacle', lw=0.10)
+    # ax.fill_between(np.arange(0, len(alpha_mean), 1), alpha_mean, step='post', color='b', alpha=0.3, label='accessible binding sites')
     ax.axvline(x=origin, c='r', ls='--', label=f'origin={origin}')
     ax.set_xlabel('x (bp)', fontsize=text_size)
     ax.set_ylabel('alpha', fontsize=text_size)
@@ -64,21 +64,22 @@ def ncl_plot_probabilities(mu, theta, p, text_size=fontsize, ax=None):
     ax.set_ylim([-0.05, 0.20])
     ax.set_ylabel('p(d)', size=text_size)
     ax.set_xlabel('d', size=text_size)
+    ax.set_ylim([0, 0.010])
     ax.grid(True, which='both')
     ax.legend(fontsize=text_size, loc='upper right')
 
 def ncl_plot_trajectories(tmax, times, results, results_mean, results_med, results_std, v_mean, v_med, text_size=fontsize, ax=None):
     ax.set_title(f'Trajectories', size=text_size)
-    ax.plot(results[0], drawstyle='steps-mid', lw=0.25, c='r', label='trajectories')
+    ax.plot(results[0], drawstyle='steps-mid', lw=0.50, c='r', label='trajectories')
     for _ in range(1, len(results)):
-        ax.plot(results[_], drawstyle='steps-mid', lw=0.25, c='r')
+        ax.plot(results[_], drawstyle='steps-mid', lw=0.50, c='r')
     # ax.errorbar(x=times, y=results_mean, yerr=results_std, c='b', ls='-', label=f'mean_trajectory', lw=1)
     ax.plot(times, results_mean, c='b', ls='-', label=f'mean_trajectory', lw=1)
     # ax.plot(times, results_med, c='g', ls='--', label=f'med_trajectory', lw=1)
     ax.set_xlabel('t', fontsize=text_size)
     ax.set_ylabel('x (bp)', fontsize=text_size)
     ax.set_xlim([0, tmax])
-    # ax.set_ylim([0, 10_000])
+    ax.set_ylim([0, 5_000])
     ax.grid(True, which='both')
     ax.legend(fontsize=text_size, loc='upper left')
 

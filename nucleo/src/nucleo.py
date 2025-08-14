@@ -2672,7 +2672,7 @@ def choose_configuration(config: str) -> dict:
                 "rtot_rest": np.array([RATES["rtot_rest"]], dtype=float)
             },
             "meta": {
-                "nt": 10_000,
+                "nt": 1_000,
                 "path": "ncl_test"
             }
         },
@@ -2792,7 +2792,7 @@ def execute_in_parallel(config: str, execution_mode: str, slurm_params: dict) ->
         run_parallel(task_params, chromatin, time, num_workers=slurm_params['num_cores_used'])
 
     elif execution_mode == 'PC':
-        run_parallel(all_params, chromatin, time, num_workers=2, use_tqdm=True)
+        run_parallel(all_params, chromatin, time, num_workers=3, use_tqdm=True)
 
     elif execution_mode == 'SNAKEVIZ':
         folder_path = f"/home/nicolas/tests/{folder_name}"

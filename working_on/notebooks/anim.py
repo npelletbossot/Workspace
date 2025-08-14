@@ -13,7 +13,7 @@ RENDER_SCALE     = 2   # 1=normal, 2=2x, 3=3x...
 S                 = RENDER_SCALE
 
 # --- Affichage & grille (logique) --- #
-VISIBLE_CASES    = 10
+VISIBLE_CASES    = 16
 TOTAL_CASES      = 30 * 5
 CASE_SIZE        = 40
 WIDTH            = VISIBLE_CASES * CASE_SIZE
@@ -68,9 +68,9 @@ GIF_FPS             = FPS                  # ✅ même fps que la simu pour parf
 
 # ---- Obstacles (optionnels) ---- #
 # 0 = obstacle, 1 = accessible. Si None, tout est accessible.
-# OBSTACLE_ARRAY  = None
+OBSTACLE_ARRAY  = None
 # OBSTACLE_ARRAY = [1, 0, 0] * 50
-OBSTACLE_ARRAY = np.random.randint(low=0, high=2, size=TOTAL_CASES)
+# OBSTACLE_ARRAY = np.random.randint(low=0, high=2, size=TOTAL_CASES)
 
 # ---- Géométrie verticale (bande collée en bas) ---- #
 BOTTOM_MARGIN   = 20
@@ -93,7 +93,7 @@ WAIT_SECS       = 0.5   # attente entre sauts (constante)
 # ---- Distance de saut ~ Gamma ---- #
 # Distance (en cases) tirée depuis Gamma(shape=k, scale=mu/k), arrondie >= 1
 JUMP_MU_CELLS   = 2.0   # μ en cases
-JUMP_SHAPE      = 2.0   # k (shape)
+JUMP_SHAPE      = 0.5   # k (shape)
 
 # =================== OUTILS =================== #
 def clamp(val, a, b):
@@ -335,6 +335,4 @@ def run_simulation():
 
 # =================== MAIN =================== #
 if __name__ == "__main__":
-    # Exemple obstacles :
-    # OBSTACLE_ARRAY = [1, 1, 0, 1, 1, 0, 1]
     run_simulation()
