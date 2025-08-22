@@ -45,6 +45,7 @@ def ncl_plot_obs_linker_distrib(obs_points, obs_distrib, link_points, link_distr
     ax1.set_title('Obstacle distribution', size=text_size)
     ax1.set_ylabel('distribution', fontsize=text_size)
     # ax1.set_xlim([0,500])
+    ax1.set_ylim([-0.1, 1.1])
     ax1.grid(True)
     ax1.legend(fontsize=text_size)
     # Bottom plot: linkers
@@ -52,29 +53,31 @@ def ncl_plot_obs_linker_distrib(obs_points, obs_distrib, link_points, link_distr
     ax2.set_title('Linker distribution', size=text_size)
     ax2.set_xlabel('bp', fontsize=text_size)
     ax2.set_ylabel('distribution', fontsize=text_size)
+    ax2.set_ylim([-0.1, 1.1])
     # ax2.set_xlim([0,250])
     ax2.grid(True)
     ax2.legend(fontsize=text_size)
     return fig
 
 def ncl_plot_probabilities(mu, theta, p, text_size=fontsize, ax=None):
-    ax.set_title(f'Input probability with for mu={mu} and theta={theta}', size=text_size)
-    ax.plot(p, label='probability distribution', c='r', lw=2)
+    ax.set_title(f'Input probability', size=text_size)
+    ax.plot(p, label=f'mu={mu} - theta={theta}', c='r', lw=2)
     ax.set_xlim([0, 0+1000])
-    ax.set_ylim([-0.05, 0.20])
+    ax.set_ylim([-0.005, 0.025])
     ax.set_ylabel('p(d)', size=text_size)
     ax.set_xlabel('d', size=text_size)
-    ax.set_ylim([0, 0.010])
     ax.grid(True, which='both')
     ax.legend(fontsize=text_size, loc='upper right')
 
 def ncl_plot_trajectories(tmax, times, results, results_mean, results_med, results_std, v_mean, v_med, text_size=fontsize, ax=None):
     ax.set_title(f'Trajectories', size=text_size)
-    ax.plot(results[0], drawstyle='steps-mid', lw=0.50, c='r', label='trajectories')
-    for _ in range(1, len(results)):
-        ax.plot(results[_], drawstyle='steps-mid', lw=0.50, c='r')
+    # ax.plot(results[0], drawstyle='steps-mid', lw=0.50, c='r', label='trajectories')
+    # for _ in range(1, len(results)):
+    #     ax.plot(results[_], drawstyle='steps-mid', lw=0.50, c='r')
+    for i in range(9, 12):
+        ax.plot(results[i], drawstyle='steps-mid', lw=2, ls="--")
     # ax.errorbar(x=times, y=results_mean, yerr=results_std, c='b', ls='-', label=f'mean_trajectory', lw=1)
-    ax.plot(times, results_mean, c='b', ls='-', label=f'mean_trajectory', lw=1)
+    ax.plot(times, results_mean, c='r', ls='-', label=f'mean_trajectory \nv_mean={np.round(v_mean,2)}', lw=2)
     # ax.plot(times, results_med, c='g', ls='--', label=f'med_trajectory', lw=1)
     ax.set_xlabel('t', fontsize=text_size)
     ax.set_ylabel('x (bp)', fontsize=text_size)
@@ -126,9 +129,9 @@ def ncl_plot_waiting_times(tbj_points, tbj_distrib, text_size=fontsize, ax=None)
 
 def ncl_plot_speed_distribution(vi_points, vi_distrib, vi_mean, vi_med, vi_mp, text_size=fontsize, ax=None):
     ax.set_title(f'Distribution of instantaneous speeds', size=text_size)
-    ax.axvline(x=vi_mp, label=f'most probable : {np.round(vi_mp,2)}', c='r', ls='-')
-    ax.axvline(x=vi_med, label=f'median : {np.round(vi_med,2)}', c='r', ls='--')
-    ax.plot(vi_points, vi_distrib, c='b', label='instantaneous speeds')
+    # ax.axvline(x=vi_mp, label=f'most probable : {np.round(vi_mp,2)}', c='r', ls='-')
+    ax.axvline(x=vi_med, label=f'vi_med = {np.round(vi_med,2)}', c='r', ls='--')
+    ax.plot(vi_points, vi_distrib, c='b')
     ax.grid(True, which='both')
     ax.set_xlabel('speeds', size=text_size)
     ax.set_ylabel('distribution', size=text_size)

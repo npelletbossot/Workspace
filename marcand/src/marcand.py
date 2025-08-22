@@ -2,37 +2,41 @@
 # coding: utf-8
 
 
-# ==========================================================
+# ================================================
 # Part 1 : Imports
-# ==========================================================
+# ================================================
 
 
-# 1.1 Standard library imports
+# 1.1 : Standard library imports
 import os
 import gc
 import time
+import math
 import logging
-from typing import Callable, Tuple, List, Dict, Optional
-from collections import defaultdict, Counter
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from itertools import groupby
-import threading
-import gzip
+from itertools import groupby, product
+from collections import Counter
+from typing import Callable, Tuple, List, Dict, Optional
+from functools import partial
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
+from datetime import date
 
 
 # 1.2 Third-party library imports
 import numpy as np
 from scipy.stats import gamma
+from scipy.stats import linregress
+from scipy.optimize import curve_fit
 import pyarrow as pa
 import pyarrow.parquet as pq
+
+
+# 1.3 Matplotlib if required
 import matplotlib.pyplot as plt
-
-
-# 1.3 Matplotlib configuration
-plt.rcParams['font.size'] = 8
+import matplotlib.cm as cm
 
 
 # ================================================
@@ -1082,7 +1086,7 @@ def calculate_instantaneous_statistics(
 # ================================================
 
 
-def set_working_environment(base_dir: str = "marcand/outputs", subfolder: str = "") -> None:
+def set_working_environment(base_dir: str = Path.home() / "Documents" / "PhD" / "Workspace" / "marcand" / "outputs", subfolder: str = "") -> None:
     """
     Ensure the specified folder exists and change the current working directory to it.
         Check if the folder exists; if not, create it
@@ -1222,8 +1226,14 @@ def inspect_data_types(data: dict, launch=True) -> None:
 # ================================================
 
 
-def sw_marcand(alpha_choice, gap, bpmin, alphaf, alphao, mu, theta, nt, path):
-
+def sw_marcand(
+        alpha_choice, 
+        gap, bpmin, 
+        mu, theta, alphao, alphaf, beta,
+        nt, path,
+        N, rap1_l, lacO_l, lmin, xmin, d1, d2, bps,
+        dt
+        ):
 
     # ------------------- Initialization ------------------- #
 
@@ -1231,30 +1241,14 @@ def sw_marcand(alpha_choice, gap, bpmin, alphaf, alphao, mu, theta, nt, path):
     title = f'alphachoice={alpha_choice}_gap={int(gap)}_mu={int(mu)}_theta={int(theta)}_nt={nt}'
     os.makedirs(title, exist_ok=True)
 
-    # Constants
-    N        = 8          # Number of groups of 2 obstacles : 16 total
-    rap1_l   = 14         # Size (bp) of rap1 obstacles
-    lacO_l   = 24         # Size (bp) of lacO obstacles
-    bps      = 1          # Base-pair step (1 per 1)
-    c_bp     = 3          # 3 for naked DNA vs 25 for chromatin
-    lp_dna   = 100        # Persistence length
-    beta     = 0
-    dt       = 1          # Time step
-
-    # Chromatin setup
-    lmin     = 0
-    xmin     = 2000
-    d        = xmin - lmin
-    D        = xmin
-
     # Landscape matrix
     alpha_matrix = calculate_landscape(
-        alpha_choice, alphaf, d, D, alphao, gap, rap1_l, lacO_l, N, bpmin, nt
+        alpha_choice, alphaf, d1, d2, alphao, gap, rap1_l, lacO_l, N, bpmin, nt
     )
     alpha_mean   = np.mean(alpha_matrix, axis=0)
 
     # Dimensions
-    lenght_array = len(alpha_matrix[0]) - d - D
+    lenght_array = len(alpha_matrix[0]) - d1 - d2
     xmax         = xmin + lenght_array
     lmax         = len(alpha_matrix[0])
     L            = np.arange(lmin, lmax, bps)
@@ -1305,6 +1299,10 @@ def sw_marcand(alpha_choice, gap, bpmin, alphaf, alphao, mu, theta, nt, path):
     vi_points, vi_distrib, vi_mean, vi_med, vi_mp = calculate_instantaneous_statistics(
         t_matrix, x_matrix, nt
     )
+
+
+    # ------------------- Testing ------------------- #
+    # print(fpt_mean)
 
 
     # ------------------- Writing ------------------- #
@@ -1389,149 +1387,390 @@ def sw_marcand(alpha_choice, gap, bpmin, alphaf, alphao, mu, theta, nt, path):
 
 
 # ================================================
-# Part 3.2 : Multiprocessing functions
+# Part 3.2 : Launching functions
 # ================================================
 
 
-def choose_configuration(config: str):
+def checking_inputs(
+    alpha_choice, gap, bpmin, 
+    mu, theta, lmbda, alphao, alphaf, beta,
+    N, lmin, xmin, d1, d2, bps,
+    nt
+):
     """
-    Select the study configuration based on the given configuration identifier.
-
+    Checks the validity of input parameters for the simulation.
     """
 
-    # Fixed parameters
-    alphaf = 1
-    alphao = 0
-    alpha_choice_values = ["array"]
+    # Obstacles
+    if alpha_choice not in {"array", "flat"}:
+        raise ValueError(f"Invalid alpha_choice: {alpha_choice}. Must be 'array' or 'flat'.")
+    for name, value in [("gap", gap), ("bpmin", bpmin)]:
+        if not isinstance(value, np.integer) or value < 0:
+            raise ValueError(f"Invalid value for {name}: must be an int >= 0. Got {value}.")
 
-    # Configurations
-    if config == "DATA":
-        gap_values = np.arange(5, 35+5, 5)
-        bpmin_values = np.array([0])
-        mu_values = np.arange(1, 200+1, 1)
-        theta_values = np.arange(1, 100+1, 1)
-        nt = 10_000
-        path = "mrc_data"
+    # Probabilities
+    if not isinstance(mu, np.integer) or mu < 0:
+        raise ValueError(f"Invalid value for mu: must be an int >= 0. Got {mu}.")
+    if not isinstance(theta, np.integer) or theta < 0:
+        raise ValueError(f"Invalid value for theta: must be an int >= 0. Got {theta}.")
+    for name, value in zip(["lmbda", "alphao", "alphaf", "beta"], [lmbda, alphao, alphaf, beta]):
+        if not (0 <= value <= 1):
+            raise ValueError(f"{name} must be between 0 and 1. Got {value}.")
+
+    # Chromatin
+    if N != 8:
+        raise ValueError(f"N must be 8. Got {N}.")
+    if lmin != 0:
+        raise ValueError(f"lmin must be 0. Got {lmin}.")
+    if xmin <= lmin:
+        raise ValueError(f"lmin must be greater than xmin. Got lmin={lmin} and xmin={xmin}.")
+    if not (d1 == d2):
+        raise ValueError(f"Invalid value for d2. d2 must be equal to d1. Got d2={d2} and d1={d1}")
+    if not isinstance(bps, int) or bps < 0:
+        raise ValueError(f"Invalid value for bps: must be an int >= 0. Got {bps}.")
+    if not (d1 == xmin - lmin):
+        raise ValueError(f"Problem in the way you configured the values of the obstacle. Got lmin={lmin}, xmin={xmin} and d1={d1}.")
+    
+    # Trajectories
+    if not isinstance(nt, int) or nt < 0:
+        raise ValueError(f"Invalid value for nt: must be an int >= 0. Got {nt}.")
+    
+
+def process_function(params: dict, chromatin: dict, time: dict) -> None:
+    """
+    Executes one simulation with the given parameters and shared constants.
+    
+    Args:
+        params (dict): One combination of geometry + probas + rates + meta parameters.
+        chromatin (dict): Dict with Lmin, Lmax, bps, origin.
+        time (dict): Dict with tmax, dt.
+    """
+    checking_inputs(
+        alpha_choice=params['alpha_choice'],
+        gap=params['gap'],
+        bpmin=params['bpmin'],
+        mu=params['mu'],
+        theta=params['theta'],
+        lmbda=params['lmbda'],
+        alphao=params['alphao'],
+        alphaf=params['alphaf'],
+        beta=params['beta'],
+        N=chromatin['N'],
+        lmin=chromatin['lmin'],
+        xmin=chromatin['xmin'],
+        d1=chromatin['d1'],
+        d2=chromatin['d2'],
+        bps=chromatin['bps'],
+        nt=params['nt'],
+    )
+
+    sw_marcand(
+        params['alpha_choice'],
+        params['gap'], params['bpmin'],
+        params['mu'], params['theta'],
+        params['alphao'], params['alphaf'], params['beta'],
+        params['nt'], params['path'],
+        chromatin['N'], chromatin['rap1_l'], chromatin['lacO_l'], 
+        chromatin['lmin'], chromatin['xmin'], chromatin['d1'], chromatin['d2'], chromatin['bps'],
+        time['dt']
+    )
+
+
+# ================================================
+# Part 3.3 : Multiprocessing functions
+# ================================================
+
+
+def choose_configuration(config: str) -> dict:
+    """
+    Returns a dictionary of study parameters organized in logical blocks.
+    All list-like parameters are converted to np.array.
+    """
+
+    # ──────────────────────────────────
+    # Shared constants (used everywhere)
+    # ──────────────────────────────────
+
+    CHROMATIN = {
+        "N"        : 8,         # Number of groups of 2 obstacles : 16 total
+        "rap1_l"   : 14,        # Size (bp) of rap1 obstacles
+        "lacO_l"   : 24,        # Size (bp) of lacO obstacles
+        "c_bp"     : 3,         # 3 for naked DNA vs 25 for chromatin
+        "lp_dna"   : 100,       # Persistence length
+        "lmin"     : 0,         # First point of chromatin
+        "xmin"     : 2000,      # First point of obstacle
+        "d1"       : 2000 - 0,  # Distance before the obstacle
+        "d2"       : 2000,      # Distance after the obstacle
+        "bps"      : 1          # Base-pair step (1 per 1)
+    }
+
+    TIME = {
+        "dt"       : 1,         # Time step
+    }
+
+    PROBAS = {
+        "lmbda": 0.40,          # Probability of in vitro condensin to reverse
+        "alphao": 0.00,         # Probability of binding if obstacle
+        "alphaf": 1.00,         # Probability of binding if linker
+        "beta": 0.00,           # Probability of in vitro condensin to undinb
+    }
+
+    RATES = {
+        "rtot_bind": 1/6,       # Rate of binding
+        "rtot_rest": 1/6        # Rate of resting
+    }
+
+    # ──────────────────────────────────
+    # Presets for study configurations
+    # ──────────────────────────────────
+
+    presets = {
+
+        "ARRAY": {
+            "geometry": {
+                "alpha_choice": np.array(['array']),
+                "gap": np.arange(5, 35+5, 5, dtype=int),
+                "bpmin": np.array([0], dtype=int)
+            },
+            "probas": {
+                "mu": np.arange(2, 200+1, 2),
+                "theta": np.arange(2, 100+1, 2),
+                "lmbda": np.array([PROBAS["lmbda"]], dtype=float),
+                "alphao": np.array([PROBAS["alphao"]], dtype=float),
+                "alphaf": np.array([PROBAS["alphaf"]], dtype=float),
+                "beta": np.array([PROBAS["beta"]], dtype=float)
+            },
+            "rates": {
+                "rtot_bind": np.array([RATES["rtot_bind"]], dtype=float),
+                "rtot_rest": np.array([RATES["rtot_rest"]], dtype=float)
+            },
+            "meta": {
+                "nt": 10_000,
+                "path": "mrc_array"
+            }
+        },
+
+        "LACI": {
+            "geometry": {
+                "alpha_choice": np.array(['LacI']),
+                "gap": np.arange(5, 35+5, 5, dtype=int),
+                "bpmin": np.array([0], dtype=int)
+            },
+            "probas": {
+                "mu": np.arange(2, 200+1, 2),
+                "theta": np.arange(2, 100+1, 2),
+                "lmbda": np.array([PROBAS["lmbda"]], dtype=float),
+                "alphao": np.array([PROBAS["alphao"]], dtype=float),
+                "alphaf": np.array([PROBAS["alphaf"]], dtype=float),
+                "beta": np.array([PROBAS["beta"]], dtype=float)
+            },
+            "rates": {
+                "rtot_bind": np.array([RATES["rtot_bind"]], dtype=float),
+                "rtot_rest": np.array([RATES["rtot_rest"]], dtype=float)
+            },
+            "meta": {
+                "nt": 10_000,
+                "path": "mrc_laci"
+            }
+        },
+
+        "TEST": {
+            "geometry": {
+                "alpha_choice": np.array(['array']),
+                "gap": np.array([5, 35], dtype=int),
+                "bpmin": np.array([0], dtype=int)
+            },
+            "probas": {
+                "mu": np.array([100, 200]),
+                "theta": np.array([10, 50]),
+                "lmbda": np.array([PROBAS["lmbda"]], dtype=float),
+                "alphao": np.array([PROBAS["alphao"]], dtype=float),
+                "alphaf": np.array([PROBAS["alphaf"]], dtype=float),
+                "beta": np.array([PROBAS["beta"]], dtype=float)
+            },
+            "rates": {
+                "rtot_bind": np.array([RATES["rtot_bind"]], dtype=float),
+                "rtot_rest": np.array([RATES["rtot_rest"]], dtype=float)
+            },
+            "meta": {
+                "nt": 1_00,
+                "path": "mrc_test"
+            }
+        },
+
+        "MAP": {
+            "geometry": {
+                "alpha_choice": np.array(['array']),
+                "gap": np.array([5, 35], dtype=int),
+                "bpmin": np.array([0], dtype=int)
+            },
+            "probas": {
+                "mu": np.array([300]),
+                "theta": np.array([50]),
+                "lmbda": np.arange(0.10, 0.90, 0.20),
+                "alphao": np.array([PROBAS["alphao"]], dtype=float),
+                "alphaf": np.array([PROBAS["alphaf"]], dtype=float),
+                "beta": np.array([PROBAS["beta"]], dtype=float)
+            },
+            "rates": {
+                "rtot_bind": 1 / np.linspace(0.10, 20, 100),
+                "rtot_rest": 1 / np.linspace(0.10, 20, 100)
+            },
+            "meta": {
+                "nt": 1_000,
+                "path": "mrc_map"
+            }
+        }
         
-    elif config == "TEST":
-        # gap_values = np.array([5, 35])
-        gap_values = np.array([35])
-        bpmin_values = np.array([0])
-        # mu_values = np.array([1, 100, 200+1])
-        mu_values = np.array([100])
-        # theta_values = np.array([1, 50, 100+1])
-        theta_values = np.array([50])
-        nt = 1_000
-        path = "mrc_test"
+    }
 
-    else:
-        raise ValueError(f"Unknown configuration identifier: {config}")
+    if config not in presets:
+        raise ValueError(f"Unknown configuration: {config}")
 
-    return alpha_choice_values, gap_values, bpmin_values, mu_values, theta_values, alphaf, alphao, nt, path
+    return {
+        **presets[config],
+        "chromatin": CHROMATIN,
+        "time": TIME
+    }
 
 
-def process_function(params):
+def generate_param_combinations(cfg: dict) -> list[dict]:
     """
-    Defines one process
+    Generates the list of parameter combinations from the configuration.
     """
-    alpha_choice, gap, bpmin, mu, theta, alphaf, alphao, nt, path,  = params
-    sw_marcand(alpha_choice, gap, bpmin, alphaf, alphao, mu, theta, nt, path)
-    return None
+    geometry = cfg['geometry']
+    probas = cfg['probas']
+    rates = cfg['rates']
+    meta = cfg['meta']
 
+    keys = ['alpha_choice', 'gap', 'bpmin', 'mu', 'theta', 'lmbda', 'alphao', 'alphaf', 'beta', 'rtot_bind', 'rtot_rest']
+    values = product(
+        geometry['alpha_choice'], geometry['gap'], geometry['bpmin'],
+        probas['mu'], probas['theta'], 
+        probas['lmbda'], probas['alphao'], probas['alphaf'], probas['beta'],
+        rates['rtot_bind'], rates['rtot_rest']
+    )
 
-def execute_in_parallel(config: str, execution_mode: str) -> None:
-    """
-    Launches all the process
-    """
-    # Inputs
-    alpha_choice_values, bpmin_values, gap_values, mu_values, theta_values, alphaf, alphao, nt, path  = choose_configuration(config)
-    
-    #- Inputs
-    params_list = [
-        (alpha_choice, bp_min, gap, mu, theta, alphaf, alphao, nt, path,)
-        for alpha_choice in alpha_choice_values
-        for bp_min in bpmin_values
-        for gap in gap_values
-        for mu in mu_values
-        for theta in theta_values
+    return [
+        dict(zip(keys, vals)) | {"nt": meta['nt'], "path": meta['path']}
+        for vals in values
     ]
-    
-    #- Chunks
-    chunk_size = len(params_list) // num_tasks
-    start = task_id * chunk_size
-    end = start + chunk_size if task_id < num_tasks - 1 else len(params_list)
-    params_list_task = params_list[start:end]
 
-    #- Environment
-    # path_initial = "/marcand/outputs/"
-    # folder_path = os.path.join(os.getcwd() + path_initial, f'{path}_{task_id}')
-    # set_working_environment(folder_path)
-    # print(os.getcwd())
-    folder_name = f"{path}_{task_id}"
-    set_working_environment(subfolder=folder_name)
+
+def run_parallel(params: list[dict], chromatin: dict, time: dict, num_workers: int, use_tqdm: bool = False) -> None:
+    """
+    Exécute les fonctions en parallèle avec ou sans barre de progression.
+    """
+    process = partial(process_function, chromatin=chromatin, time=time)
+
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        futures = [executor.submit(process, p) for p in params]
+        iterator = tqdm(as_completed(futures), total=len(futures), desc="Processing") if use_tqdm else as_completed(futures)
+
+        for future in iterator:
+            try:
+                future.result()
+            except Exception as e:
+                print(f"Process failed with exception: {e}")
+
+
+def run_sequential(params: list[dict], chromatin: dict, time: dict, folder_path="") -> None:
+    """
+    Exécute les fonctions séquentiellement (utile pour profiling ou debug).
+    """
+    process = partial(process_function, chromatin=chromatin, time=time)
+
+    for p in tqdm(params, desc="Processing sequentially"):
+        try:
+            process(p)
+        except Exception as e:
+            print(f"Process failed with exception: {e}")
+
+
+def execute_in_parallel(config: str, execution_mode: str, slurm_params: dict) -> None:
+    """
+    Launches multiple processes based on selected configuration and execution mode.
+    """
+    cfg = choose_configuration(config)
+    chromatin = cfg["chromatin"]
+    time = cfg["time"]
+
+    all_params = generate_param_combinations(cfg)
+
+    # Split tasks by SLURM
+    task_id = slurm_params['task_id']
+    num_tasks = slurm_params['num_tasks']
+    task_params = np.array_split(all_params, num_tasks)[task_id]
+
+    folder_name = f"{cfg['meta']['path']}_{task_id}"
+    set_working_environment(subfolder = f"{str(date.today())}_{execution_mode} / {folder_name}")
 
     # Execution modes
-    if execution_mode == 'PSMN' :
-        num_processes = num_cores_used
-        with ProcessPoolExecutor(max_workers=num_processes) as executor:
-            futures = {executor.submit(process_function, params): params for params in params_list_task}
-            for future in as_completed(futures):
-                try:
-                    future.result()
-                except Exception as e:
-                    print(f"Process failed with exception: {e}")
-        return None
+    if execution_mode == 'PSMN':
+        run_parallel(task_params, chromatin, time, num_workers=slurm_params['num_cores_used'])
 
-    if execution_mode == 'PC' :
-        num_processes = 4
+    elif execution_mode == 'PC':
+        run_parallel(all_params, chromatin, time, num_workers=3, use_tqdm=True)
 
-        with ProcessPoolExecutor(max_workers=num_processes) as executor:
-            futures = {executor.submit(process_function, params): params for params in params_list}
-            for future in tqdm(as_completed(futures), total=len(futures), desc="Processing"):
-                try:
-                    future.result()
-                except Exception as e:
-                    print(f"Process failed with exception: {e}")
-        return None
-    
+    elif execution_mode == 'SNAKEVIZ':
+        run_sequential(all_params, chromatin, time)
+
+    else:
+        raise ValueError(f"Unknown execution mode: {execution_mode}")
+
 
 # ================================================
 # Part 4 : Main
 # ================================================
 
-# 4.1 : Inputs
 
+# ─────────────────────────────────────────────
+# 4.1. SLURM environment parsing
+# ─────────────────────────────────────────────
 
+def get_slurm_params():
+    return {
+        'num_cores_used': int(os.getenv('SLURM_CPUS_PER_TASK', '1')),
+        'num_tasks': int(os.getenv('SLURM_NTASKS', '1')),
+        'task_id': int(os.getenv('SLURM_PROCID', '0'))
+    }
 
-# 4.2 : Slurm parameters
-num_cores_used = int(os.getenv('SLURM_CPUS_PER_TASK', '1'))
-num_tasks = int(os.getenv('SLURM_NTASKS', '1'))
-task_id = int(os.getenv('SLURM_PROCID', '0'))
+# ─────────────────────────────────────────────
+# 4.2. Execution parameters
+# ─────────────────────────────────────────────
 
+# Options: PSMN / PC / SNAKEVIZ
+EXE_MODE = "PC"
 
-# 4.3 : Main function
+# Options: ARRAY / LACI / MAP / TEST
+CONFIG = "TEST"
+
+# ─────────────────────────────────────────────
+# 4.3. Main function
+# ─────────────────────────────────────────────
+
 def main():
     print('\n#- Launched -#\n')
     start_time = time.time()
-    initial_adress = Path.cwd()
+    initial_address = Path.cwd()
 
-    config = 'DATA'         # DATA / TEST
-    exe = 'PSMN'              # PSMN / PC / SNAKEVIZ
+    slurm_env = get_slurm_params()
+    print(f"SLURM ENV → {slurm_env}")
 
     try:
-        execute_in_parallel(config, exe)
+        execute_in_parallel(CONFIG, EXE_MODE, slurm_env)
     except Exception as e:
-        print(f"Process failed: {e}")
+        print(f"[ERROR] Process failed: {e}")
 
-    os.chdir(initial_adress)
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    print(f'\n#- Finished in {int(elapsed_time // 60)}m at {initial_adress} -#\n')
+    os.chdir(initial_address)
+    elapsed = time.time() - start_time
+    print(f'\n#- Finished in {int(elapsed // 60)}m at {initial_address} -#\n')
 
+# ─────────────────────────────────────────────
+# 4.4 Entry point
+# ─────────────────────────────────────────────
 
-# 4.4 : Main launch
 if __name__ == '__main__':
-
     main()
 
 

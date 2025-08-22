@@ -22,6 +22,7 @@ from typing import Callable, Tuple, List, Dict, Optional
 from functools import partial
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
+from datetime import date
 
 
 # 1.2 Third-party library imports
@@ -2096,8 +2097,9 @@ def calculate_dwell_times(
 
 
 def sw_nucleo(
-    alpha_choice: str, s: int, l: int, bpmin: int, 
-    mu: float, theta: float, lmbda: float, alphao: float, alphaf: float, beta: float, 
+    alpha_choice: str, s: int, l: int, bpmin: int,
+    mu: float, theta: float, 
+    lmbda: float, alphao: float, alphaf: float, beta: float, 
     rtot_bind: float, rtot_rest: float,
     nt: int, path: str,
     Lmin: int, Lmax: int, bps: int, origin: int,
@@ -2380,7 +2382,7 @@ def sw_nucleo(
     # Types of data registered if needed
     inspect_data_types(data_result, launch=False)
 
-# Writing data
+    # Writing data
     writing_parquet(file=path, title=title, data_result=data_result)
 
     # Clean raw datas
@@ -2573,7 +2575,7 @@ def choose_configuration(config: str) -> dict:
             },
             "meta": {
                 "nt": 100,
-                "path": "ncl_nu_test"
+                "path": "ncl_nu"
             }
         },
 
@@ -2727,8 +2729,8 @@ def generate_param_combinations(cfg: dict) -> list[dict]:
     keys = ['alpha_choice', 's', 'l', 'bpmin', 'mu', 'theta', 'lmbda', 'alphao', 'alphaf', 'beta', 'rtot_bind', 'rtot_rest']
     values = product(
         geometry['alpha_choice'], geometry['s'], geometry['l'], geometry['bpmin'],
-        probas['mu'], probas['theta'], probas['lmbda'],
-        probas['alphao'], probas['alphaf'], probas['beta'],
+        probas['mu'], probas['theta'], 
+        probas['lmbda'], probas['alphao'], probas['alphaf'], probas['beta'],
         rates['rtot_bind'], rates['rtot_rest']
     )
 
@@ -2755,7 +2757,7 @@ def run_parallel(params: list[dict], chromatin: dict, time: dict, num_workers: i
                 print(f"Process failed with exception: {e}")
 
 
-def run_sequential(params: list[dict], chromatin: dict, time: dict, folder_path: str) -> None:
+def run_sequential(params: list[dict], chromatin: dict, time: dict, folder_path="") -> None:
     """
     Exécute les fonctions séquentiellement (utile pour profiling ou debug).
     """
@@ -2783,9 +2785,8 @@ def execute_in_parallel(config: str, execution_mode: str, slurm_params: dict) ->
     num_tasks = slurm_params['num_tasks']
     task_params = np.array_split(all_params, num_tasks)[task_id]
 
-    # Create working dir
     folder_name = f"{cfg['meta']['path']}_{task_id}"
-    set_working_environment(subfolder=folder_name)
+    set_working_environment(subfolder = f"{str(date.today())}_{execution_mode} / {folder_name}")
 
     # Execution modes
     if execution_mode == 'PSMN':
@@ -2795,8 +2796,7 @@ def execute_in_parallel(config: str, execution_mode: str, slurm_params: dict) ->
         run_parallel(all_params, chromatin, time, num_workers=3, use_tqdm=True)
 
     elif execution_mode == 'SNAKEVIZ':
-        folder_path = f"/home/nicolas/tests/{folder_name}"
-        run_sequential(all_params, chromatin, time, folder_path)
+        run_sequential(all_params, chromatin, time)
 
     else:
         raise ValueError(f"Unknown execution mode: {execution_mode}")
