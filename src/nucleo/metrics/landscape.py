@@ -220,6 +220,19 @@ def clc_obs_and_link_distrib(
     ends_l = np.where(diffs_l == -1)[0]
     counts_l = ends_l - starts_l
 
+
+    # Adding blocks of roadblocks to linkers of size 0 into the distribution
+    roadblocks = counts_o // s
+    values, counts = np.unique(roadblocks, return_counts=True)
+
+    zeros_to_add = []
+    for i in range(1, len(values)):
+        zeros_to_add.extend([0] * (counts[i] * (values[i] - 1)))
+
+    counts_l = np.concatenate((counts_l, np.array(zeros_to_add)))
+    print(values, counts, counts_l)
+            
+    # Linker data
     if counts_l.size > 0:
         mean_l = float(np.mean(counts_l))
         points_l, distrib_l = clc_distrib(
@@ -231,5 +244,7 @@ def clc_obs_and_link_distrib(
     else:
         mean_l = 0.0
         points_l, distrib_l = np.array([0.0]), np.array([0.0])
+
+    print(distrib_l)
 
     return mean_o, points_o, distrib_o, mean_l, points_l, distrib_l
