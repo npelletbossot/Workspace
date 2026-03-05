@@ -406,19 +406,19 @@ def choose_configuration(config: str) -> dict:
         "FIGURE_1": {
             **ONESTEP__BASE,
             "geometry": {
-                "landscape": np.array(['random']),
+                "landscape": np.array(['homogeneous']),
                 "s": np.array([150], dtype=int),
                 "l": np.array([10], dtype=int),
                 "bpmin": np.array([0], dtype=int)
             },
             "probas": {
                 **ONESTEP__BASE["probas"],
-                "mu": np.arange(1, 601, 10, dtype=int),
-                "theta": np.arange(1, 101, 10, dtype=int)
+                "mu": np.array([160], dtype=int),
+                "theta": np.array([1, 20, 200], dtype=int)
             },
             "meta": {
                 **ONESTEP__BASE["meta"],
-                "nt": 100,
+                "nt": 10_000,
                 "path": f"{PROJECT['project_name']}__fig1"
             }
         },

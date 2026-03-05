@@ -203,7 +203,7 @@ def plot_speed_distribution(
     elif title == "periodic":
         title = "Periodic"
 
-    ax.set_title(f"{title}", size=text_size)
+    # ax.set_title(f"{title}", size=text_size)
 
     # --- Simulation curve (ONLY thing in legend for color) ---
     ax.plot(

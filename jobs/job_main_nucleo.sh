@@ -1,12 +1,14 @@
 #!/bin/bash
-#SBATCH --job-name=ncl_test
-#SBATCH --output=logs/nucleo_%j.out
-#SBATCH --error=logs/nucleo_%j.err
-#SBATCH --time=02:00:00
+#SBATCH --job-name=ncl_main
+#SBATCH --output=logs/nucleo_%A_%a.out
+#SBATCH --error=logs/nucleo_%A_%a.err
+#SBATCH --time=168:00:00
+#SBATCH --array=0-47%10
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=10
-#SBATCH --mem=4G
+#SBATCH --cpus-per-task=20
+#SBATCH --mem-per-cpu=10G
+#SBATCH --partition=Lake
 
 # --- Go to project folder --- #
 cd /Xnfs/physbiochrom/npellet/nucleo
@@ -15,4 +17,4 @@ cd /Xnfs/physbiochrom/npellet/nucleo
 source /Xnfs/physbiochrom/npellet/nucleo/.venv_nucleo_PSMN/bin/activate
 
 # --- Run script --- #
-python main.py
+python3 main.py

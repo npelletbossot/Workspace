@@ -168,7 +168,7 @@ def execute_in_parallel(config: str,
         # Split équilibré par tâche SLURM
         chunks      = np.array_split(all_params, num_tasks)
         this_params = list(chunks[task_id]) if num_tasks > 1 else all_params
-        num_workers = num_cores
+        num_workers = num_workers = min(8, num_cores)
         base_dir    = "/Xnfs/physbiochrom/npellet/"
         use_tqdm    = False
         task_suffix = str(task_id)
