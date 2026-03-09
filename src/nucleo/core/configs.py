@@ -207,7 +207,7 @@ def choose_configuration(config: str) -> dict:
         "formalism": {**FORMALISMS['alg2']},
         "geometry": {
             "landscape": np.array(['homogeneous', 'periodic', 'random']),
-            "s": np.array([35], dtype=int),
+            "s": np.array([150], dtype=int),
             "l": np.array([10], dtype=int),
             "bpmin": np.array([0], dtype=int)
         },
@@ -394,6 +394,11 @@ def choose_configuration(config: str) -> dict:
         
         "TEST": {
             **TEST__BASE,
+            "probas": {
+                **TEST__BASE["probas"],
+                "mu": np.array([160], dtype=int),
+                "theta": np.array([200], dtype=int)
+            },
             "formalism": {**FORMALISMS['alg1']},
             "meta": {
                 **TEST__BASE["meta"],
@@ -433,7 +438,7 @@ def choose_configuration(config: str) -> dict:
             },
             "probas": {
                 **ONESTEP__BASE["probas"],
-                "mu": np.array([200]),
+                "mu": np.array([160]),
                 "theta": np.array([20, 200]),
             },
             "meta": {
@@ -453,7 +458,7 @@ def choose_configuration(config: str) -> dict:
             },
             "probas": {
                 **ONESTEP__BASE["probas"],
-                "mu": np.array([200]),
+                "mu": np.array([160]),
                 "theta": np.array([20, 200]),
             },
             "meta": {

@@ -246,6 +246,10 @@ def find_blocks(array: np.ndarray, alpha_value: float) -> list[tuple[int, int]]:
     list[tuple[int, int]]
         A list of intervals (start_index, end_index) for each contiguous obstacle block.
     """
+
+    if np.all(np.isclose(array, array[0])):
+        return np.array([[0, 0]])
+
     array = np.asarray(array)
     
     is_block = np.isclose(array, alpha_value, atol=1e-8)

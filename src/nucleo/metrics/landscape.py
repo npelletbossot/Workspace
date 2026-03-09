@@ -230,7 +230,7 @@ def clc_obs_and_link_distrib(
         zeros_to_add.extend([0] * (counts[i] * (values[i] - 1)))
 
     counts_l = np.concatenate((counts_l, np.array(zeros_to_add)))
-    print(values, counts, counts_l)
+    # print(values, counts, counts_l)
             
     # Linker data
     if counts_l.size > 0:
@@ -244,7 +244,5 @@ def clc_obs_and_link_distrib(
     else:
         mean_l = 0.0
         points_l, distrib_l = np.array([0.0]), np.array([0.0])
-
-    print(distrib_l)
 
     return mean_o, points_o, distrib_o, mean_l, points_l, distrib_l

@@ -295,6 +295,8 @@ def sw_nucleo(
     
     # Chromatin
     L = np.arange(Lmin, Lmax, bps)
+    security_step = 0.001
+    L = np.arange(Lmin + security_step, Lmax + security_step, bps)
     lenght = (Lmax-Lmin) // bps
 
     # Time 
