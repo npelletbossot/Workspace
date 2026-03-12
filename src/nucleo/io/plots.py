@@ -13,9 +13,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpecFromSubplotSpec
 
+from pathlib import Path
+import pickle
+from tqdm import tqdm
+
 
 # ─────────────────────────────────────────────
-# 2 : Functions
+# 2 : Functions : 1D Plots
 # ─────────────────────────────────────────────
 
 
@@ -229,10 +233,10 @@ def plot_speed_distribution(
 
     # --- Formatting ---
     ax.grid(True, which='both', alpha=0.3)
-    ax.set_xlabel(r'speeds ($\sigma k_0$)', fontsize=text_size)
+    ax.set_xlabel(r'Velocity $v_{i}$ ($\sigma k_0$)', fontsize=text_size)
     ax.set_ylabel('Distribution', size=text_size)
 
-    ax.set_ylim([1e-5, 1e0])
+    ax.set_ylim([1e-4, 1e0])
     ax.set_xlim([5e-1, 1e3])
 
     ax.set_xscale('log')
@@ -374,5 +378,254 @@ def plot_fitting_summary(times, positions, v_mean,
     axes[1, 3].grid(True, which="both", linestyle='--')
 
     # Done
+    plt.tight_layout()
+    plt.show()
+
+
+# ─────────────────────────────────────────────
+# 3 : Functions : 2D Plots
+# ─────────────────────────────────────────────
+
+
+def plot_single_heatmap(
+    ax,
+    mu_values,
+    theta_values,
+    data,
+    speed_col,
+    config,
+    plot_log2,
+    vmin,
+    vmax,
+    title_bar
+):
+    """
+    Plot a single heatmap inside a given axis.
+    """
+
+    # ─────────────────────────────────────────────
+    # Convert everything to numpy
+    # ─────────────────────────────────────────────
+
+    mu_values = np.asarray(mu_values)
+    theta_values = np.asarray(theta_values)
+    data = np.asarray(data)
+
+    # ─────────────────────────────────────────────
+    # Safety check on dimensions
+    # ─────────────────────────────────────────────
+
+    expected_shape = (len(theta_values), len(mu_values))
+
+    if data.shape != expected_shape:
+        raise ValueError(
+            f"\nHeatmap dimension mismatch\n"
+            f"Expected data shape : {expected_shape}\n"
+            f"Received data shape : {data.shape}\n"
+            f"len(theta_values) = {len(theta_values)}\n"
+            f"len(mu_values) = {len(mu_values)}"
+        )
+
+    # ─────────────────────────────────────────────
+    # Special case wf
+    # ─────────────────────────────────────────────
+
+    if speed_col == "wf":
+
+        cmap = "jet"
+        wmin, wmax = 0, 1
+        data_to_plot = data
+
+        c = ax.pcolormesh(
+            mu_values,
+            theta_values,
+            data_to_plot,
+            cmap=cmap,
+            vmin=wmin,
+            vmax=wmax,
+            shading="auto"
+        )
+
+    # ─────────────────────────────────────────────
+    # Other variables
+    # ─────────────────────────────────────────────
+
+    else:
+
+        cmap = "bwr"
+
+        if plot_log2:
+            data_to_plot = np.log2(data, dtype=float)
+        else:
+            data_to_plot = data
+
+        data_to_plot = np.nan_to_num(data_to_plot, nan=0.0)
+
+        c = ax.pcolormesh(
+            mu_values,
+            theta_values,
+            data_to_plot,
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+            shading="auto"
+        )
+
+        cbar = plt.colorbar(c, ax=ax)
+        cbar.set_label(title_bar)
+
+        # ─────────────────────────────────────────────
+        # Théorie v_mp
+        # ─────────────────────────────────────────────
+
+        s = config["s"]
+        l = config["l"]
+
+        MU, THETA = np.meshgrid(mu_values, theta_values)
+
+        vmp_th = (MU - (THETA**2) / MU) / (l + s)
+
+        levels = [1, 2, 3]
+
+        cs = ax.contour(
+            mu_values,
+            theta_values,
+            vmp_th,
+            levels=levels,
+            colors="black",
+            linestyles="dotted",
+            linewidths=1.5
+        )
+
+        ax.clabel(cs, inline=True, fontsize=10, fmt="%.1f")
+
+    # ─────────────────────────────────────────────
+    # Labels
+    # ─────────────────────────────────────────────
+
+    ax.set_title("Simulation")
+    ax.set_xlabel("$\\mu(\\sigma)$")
+    ax.set_ylabel("$\\theta(\\sigma)$")
+
+
+def plot_all_heatmaps(speed_cols, root = Path.home() / "Documents" / "Workspace" / "nucleo" / "outputs" / "2025-01-01_PSMN", type_of_data="raw", plot_log2=False):
+    """
+    Plots heatmaps of either raw or log2-transformed values depending on the variable:
+    - log2 + bwr for all except wf
+    - linear + jet for wf
+
+    Data are already normalized by the theoretical values of the constant_value scenario !
+
+    """
+
+    if plot_log2:
+        title_bar_mini = "log₂ ("
+    else:
+        title_bar_mini = ""
+
+    if type_of_data not in ["raw", "norm_mu", "norm_th"]:
+        raise ValueError ("No such type_of_data possible to plot.")
+
+    if type_of_data == "raw":
+        main_file_path = root / "ncl_hm_raw.pkl"
+        title_bar = title_bar_mini + "v"
+        if plot_log2:
+            vmin, vmax = -2, 10
+        else :
+            vmin, vmax = 0, 50
+
+    elif type_of_data == "norm_mu":
+        main_file_path = root / "ncl_hm_nmu.pkl"
+        title_bar = title_bar_mini + "(v / mean value)"
+        if plot_log2:
+            vmin, vmax = -1, 0.010
+        else:
+            vmin, vmax = 0, 0.50
+
+    elif type_of_data == "norm_th":
+        main_file_path = root / "ncl_hm_nth.pkl"
+        title_bar = title_bar_mini + r"$ v_{mean}$ / $v_{homogeneous}$)"
+        if plot_log2:
+            vmin, vmax = -2, 2
+        else:
+            vmin, vmax = 0, 10
+
+    with open(main_file_path, "rb") as f:
+        computed_data = pickle.load(f)
+
+    n_combinations = len(computed_data)
+    fig, axes = plt.subplots(nrows=n_combinations, ncols=len(speed_cols), figsize=(18, 4 * n_combinations), dpi=400)
+    axes = np.atleast_2d(axes)
+
+    for idx, (key, config_data) in enumerate(tqdm(computed_data.items(), total=n_combinations, desc="Plotting heatmaps")):
+        mu_values = config_data["mu_values"]
+        theta_values = config_data["theta_values"]
+        config = config_data["config"]
+
+        for col_idx, speed_col in enumerate(speed_cols):
+            ax = axes[idx, col_idx]
+            data = config_data[speed_col]
+
+            if speed_col == "wf":
+                cmap = 'jet'
+                wmin = 0
+                wmax = 1
+                data_to_plot = data
+                c = ax.pcolormesh(mu_values, theta_values, data_to_plot, cmap=cmap, vmin=wmin, vmax=wmax)
+
+            else:
+                cmap = 'bwr'
+                if plot_log2: 
+                    data_to_fix = np.log2(data, dtype=float)
+                else:
+                    data_to_fix = data
+                
+                data_to_plot = np.nan_to_num(data_to_fix, nan=0.0)
+
+                c = ax.pcolormesh(mu_values, theta_values, data_to_plot, cmap=cmap, vmin=vmin, vmax=vmax)
+                cbar = plt.colorbar(c, ax=ax)
+                cbar.set_label(title_bar)
+
+
+                # ─────────────────────────────────────────────
+                # Théorie v_mp
+                # ─────────────────────────────────────────────
+
+                s = config["s"]
+                l = config["l"]
+
+                MU, THETA = np.meshgrid(mu_values, theta_values)
+
+                vmp_th = (MU - (THETA**2)/MU) / (l + s)
+
+                levels = [1, 2, 3]   # valeurs de v_mp
+
+                cs = ax.contour(
+                    mu_values,
+                    theta_values,
+                    vmp_th,
+                    levels=levels,
+                    colors="black",
+                    linestyles="dotted",
+                    linewidths=1.5
+                )
+
+                ax.clabel(cs, inline=True, fontsize=10, fmt="%.1f")
+
+
+            # alpha_choice = config['alpha_choice']
+            # if alpha_choice == "nt_random":
+            #     alpha_choice = "Random"
+            # elif alpha_choice == "periodic":
+            #     alpha_choice = "Periodic"
+            # elif alpha_choice == "constant_mean":
+            #     alpha_choice = "Homogeneous"
+
+            # ax.set_title(f"{alpha_choice} : s={config['s']} l={config['l']} bpmin={config['bpmin']}")
+
+            ax.set_title("Simulation")
+            ax.set_xlabel("$\\mu(\\sigma)$")
+            ax.set_ylabel("$\\theta(\\sigma)$")
+
     plt.tight_layout()
     plt.show()

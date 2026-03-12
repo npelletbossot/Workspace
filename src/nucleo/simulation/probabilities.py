@@ -69,6 +69,10 @@ def proba_gamma(mu: float, theta: float, L: float) -> float:
     beta_gamma = theta**2 / mu                                  # Calculate the scale parameter (beta) of the Gamma distribution
     p_gamma = gamma.pdf(L, a=alpha_gamma, scale=beta_gamma)     # Compute the probability density for the value L
 
-    p_gamma = p_gamma / np.sum(p_gamma)
+    p_gamma = p_gamma / np.sum(p_gamma[1:len(L)])
+
+    # # Verification
+    # print(f"p_gamma[0] = {p_gamma[0]}")
+    # print(f"np.sum(p_gamma[1:]) = {np.sum(p_gamma[1:])}")
 
     return p_gamma

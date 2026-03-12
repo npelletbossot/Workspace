@@ -419,7 +419,7 @@ def choose_configuration(config: str) -> dict:
             "probas": {
                 **ONESTEP__BASE["probas"],
                 "mu": np.array([160], dtype=int),
-                "theta": np.arange(1, 101, 1, dtype=int)
+                "theta": np.arange(1, 1001, 1, dtype=int)
             },
             "meta": {
                 **ONESTEP__BASE["meta"],

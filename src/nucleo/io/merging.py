@@ -139,7 +139,10 @@ def merging_parquet_lazy(root_directory, output_name="ncl_output.parquet"):
     print("Scanning parquet dataset...")
 
     df = (
-        pl.scan_parquet(str(root_directory / "**/*.parquet"))
+        pl.scan_parquet(
+            str(root_directory / "**/*.parquet")
+            # extra_columns="ignore"
+        )
         .select(cs.numeric() | cs.boolean() | cs.string())
         .collect(engine="streaming")
     )
@@ -170,26 +173,26 @@ def getting_and_ordering_configurations(data_frame, scenario_path = Path.home() 
     df = data_frame
     filtered_combinations = df.filter(
         ~(
-            # ((pl.col("landscape") == 'periodic') | (pl.col("landscape") == 'homogeneous')) &
-            # (pl.col("bpmin") == 5)
-
-            ((pl.col("alpha_choice") == 'periodic') | (pl.col("alpha_choice") == 'constant_mean')) &
+            ((pl.col("landscape") == 'periodic') | (pl.col("landscape") == 'homogeneous')) &
             (pl.col("bpmin") == 5)
+
+            # ((pl.col("alpha_choice") == 'periodic') | (pl.col("alpha_choice") == 'constant_mean')) &
+            # (pl.col("bpmin") == 5)
         )
     )
 
     # Getting the unique combinations of 's', 'l', 'bpmin' and 'landscape'
-    unique_combinations = filtered_combinations.select(['s', 'l', 'bpmin', 'alpha_choice']).unique()
+    unique_combinations = filtered_combinations.select(['s', 'l', 'bpmin', 'landscape']).unique()
 
     # Ordering it by landscape in priority
-    # alpha_order = pl.when(pl.col("landscape") == 'homogeneous').then(1)\
-    #                 .when(pl.col("landscape") == 'periodic').then(2)\
-    #                 .when(pl.col("landscape") == 'random').then(3)\
-    #                 .otherwise(4)
-    alpha_order = pl.when(pl.col("alpha_choice") == 'constant_mean').then(1)\
-                    .when(pl.col("alpha_choice") == 'periodic').then(2)\
-                    .when(pl.col("alpha_choice") == 'nt_random').then(3)\
+    alpha_order = pl.when(pl.col("landscape") == 'homogeneous').then(1)\
+                    .when(pl.col("landscape") == 'periodic').then(2)\
+                    .when(pl.col("landscape") == 'random').then(3)\
                     .otherwise(4)
+    # alpha_order = pl.when(pl.col("alpha_choice") == 'constant_mean').then(1)\
+    #                 .when(pl.col("alpha_choice") == 'periodic').then(2)\
+    #                 .when(pl.col("alpha_choice") == 'nt_random').then(3)\
+    #                 .otherwise(4)
     unique_combinations = unique_combinations.with_columns(
         alpha_order.alias("alpha_order")
     )
@@ -203,7 +206,7 @@ def getting_and_ordering_configurations(data_frame, scenario_path = Path.home() 
     # Convertiing it into a list of dict
     sorted_combinations_configs = sorted_combinations.rows()
     sorted_combinations_configs = [
-        {"s": row[0], "l": row[1], "bpmin": row[2], "alpha_choice": row[3]} 
+        {"s": row[0], "l": row[1], "bpmin": row[2], "landscape": row[3]} 
         for row in sorted_combinations_configs
     ]
 
@@ -247,7 +250,7 @@ def compute_heatmap_data(df: pl.DataFrame, config_list: list, speed_cols: list, 
             (pl.col('s') == config['s']) &
             (pl.col('l') == config['l']) &
             (pl.col('bpmin') == config['bpmin']) &
-            (pl.col('alpha_choice') == config['alpha_choice'])
+            (pl.col('landscape') == config['landscape'])
         )
 
         if df_filtered.is_empty():
@@ -335,7 +338,7 @@ def compute_heatmap_data_fast(df, config_list, speed_cols, root):
             (pl.col("s") == config["s"]) &
             (pl.col("l") == config["l"]) &
             (pl.col("bpmin") == config["bpmin"]) &
-            (pl.col("alpha_choice") == config["alpha_choice"])
+            (pl.col("landscape") == config["landscape"])
         )
 
         if df_f.is_empty():
@@ -461,7 +464,7 @@ def compute_heatmap_data_fast(df, config_list, speed_cols, root):
 # ─────────────────────────────────────────────
 
 # 3.0 : Root
-root = Path.home() / "Documents" / "Workspace" / "nucleo" / "outputs" / "2025-01-01_PSMN"
+root = Path.home() / "Documents" / "Workspace" / "nucleo" / "PSMN" / "outputs" / "2026-03-09__PSMN"
 root_parquet = root / "ncl_output.parquet"
 
 # # 3.1 : Merging
