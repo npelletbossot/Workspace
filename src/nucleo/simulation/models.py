@@ -479,7 +479,7 @@ def gillespie_algo_two_steps(
                 break
 
             # --- Jumping : Destination --- #
-            x_jump  = np.random.choice(L, p=p)
+            x_jump  = int(np.random.choice(L, p=p))
             x       += x_jump
             r0_capt = np.random.rand()
             r_capt  = alpha_array[x]

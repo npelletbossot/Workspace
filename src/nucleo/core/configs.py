@@ -177,7 +177,7 @@ def choose_configuration(config: str) -> dict:
         "geometry": {
             "landscape": np.array(['homogeneous', 'periodic', 'random']),
             "s": np.array([35], dtype=int),
-            "l": np.array([10, 30, 50, 100], dtype=int),
+            "l": np.array([10, 35, 100], dtype=int),
             "bpmin": np.array([0], dtype=int)
         },
         "probas": {
@@ -197,7 +197,7 @@ def choose_configuration(config: str) -> dict:
             "klist": np.arange(0.0, 1.0 + 0.10, 0.10, dtype=float),
         },
         "meta": {
-            "nt": 10_000,
+            "nt": 100,
             "data_return": True,
             "total_return": True
         }
@@ -397,7 +397,7 @@ def choose_configuration(config: str) -> dict:
             "probas": {
                 **TEST__BASE["probas"],
                 "mu": np.array([160], dtype=int),
-                "theta": np.array([200], dtype=int)
+                "theta": np.array([20, 200], dtype=int)
             },
             "formalism": {**FORMALISMS['alg1']},
             "meta": {

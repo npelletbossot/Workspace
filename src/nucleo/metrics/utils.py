@@ -93,27 +93,15 @@ def clc_distrib(
     arr = arr[np.isfinite(arr)]
 
     # Handle empty data array
-    if data.size == 0: 
+    if arr.size == 0: 
         return np.array([]), np.array([])
 
     # Points and not bins
     bins = np.arange(first_bin, last_bin + bin_width, bin_width, dtype=np.float64)
-    counts, edges = np.histogram(arr, bins=bins)
-    
-    # Normalizing
-    counts = counts.astype(np.float64)
-    total = counts.sum()
-    
-    if total > 0.0:
-        distrib = counts / total
-    else:
-        distrib = np.zeros_like(counts, dtype=np.float64)
-
-    # Points = centers
+    density, edges = np.histogram(arr, bins=bins, density=True)
     points = (edges[:-1] + edges[1:]) / 2.0
-    
-    # Return the bin centers and the normalized distribution
-    return points, distrib
+
+    return points, density
 
 
 def listoflist_into_matrix(listoflist: list) -> np.ndarray:
