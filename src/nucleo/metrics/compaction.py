@@ -120,7 +120,7 @@ def clc_bp_speeds(
         return vi_bp_array[vi_bp_array > 0]
     
 
-# 2.1 Second Method
+# 2.2 Second Method
 
 
 def clc_compaction_landscape(alpha_matrix: np.ndarray) -> np.ndarray:
@@ -165,8 +165,8 @@ def clc_compaction_statistics(
     alpha_matrix_c = clc_compaction_landscape(alpha_matrix)
     vc_array = clc_compaction_speeds(alpha_matrix_c, t_matrix, x_matrix)
 
-    vc_mean = np.mean(vc_array, axis=0)
-    vc_med  = np.median(vc_array, axis=0)
+    vc_mean = np.nanmean(vc_array)
+    vc_med  = np.nanmedian(vc_array)
 
     vc_points, vc_distrib = clc_distrib(data=vc_array, first_bin=0, last_bin=1000, bin_width=1)
     vc_mp   = vc_points[np.where(vc_distrib == np.max(vc_distrib))]
