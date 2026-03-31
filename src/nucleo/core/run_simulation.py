@@ -502,6 +502,11 @@ def sw_nucleo(
             
     # except Exception as e:
     #     print(f"Error in Analysis 4 - Rates and Taus : {e} for {title}")
+
+
+    # ------------------- Tests ------------------- #
+
+    # print(type(vc_mean), vc_mean)
     
     
     # ------------------- Data ------------------- #
