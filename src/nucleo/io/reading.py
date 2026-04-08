@@ -62,6 +62,48 @@ def reading_one_parquet(root: str | Path) -> pl.DataFrame:
     return pl.read_parquet(Path(root))
 
 
+# def finding_one_parquet(root: str, params: dict) -> pl.DataFrame:
+
+#     required_params = {
+#         "algorithm", "fact", "factmode",
+#         "landscape", "s", "l", "bpmin",
+#         "mu", "theta", "alphar", "K"
+#     }
+#     missing = required_params - params.keys()
+#     if missing:
+#         raise ValueError(f"Missing parameters: {missing}")
+
+#     root = Path(root)
+#     paths = [
+#         str(p) for p in root.glob("**/*.parquet")
+#         if p.name not in {"ncl_output.parquet", "merged.parquet"}
+#     ]
+
+#     if not paths:
+#         raise FileNotFoundError("No parquet files found.")
+
+#     FLOAT_COLS = {"alphar", "K", "mu", "theta", "s", "l", "bpmin"}
+#     EPS = 1e-6
+
+#     def make_filter(k, v):
+#         if k in FLOAT_COLS:
+#             return pl.col(k).is_between(v - EPS, v + EPS)
+#         return pl.col(k) == v
+    
+#     print(f"Scanning {len(paths)} parquet files...")
+
+#     df = (
+#         pl.scan_parquet(paths, extra_columns="ignore")
+#         .filter(pl.all_horizontal([make_filter(k, v) for k, v in params.items()]))
+#         .collect()
+#     )
+
+    # if df.height == 0:
+    #     raise ValueError("No dataframe found with the given parameters.")
+
+    # return df
+
+
 def finding_one_parquet(root: str, params: dict) -> pl.DataFrame:
 
     required_params = {
@@ -74,28 +116,32 @@ def finding_one_parquet(root: str, params: dict) -> pl.DataFrame:
         raise ValueError(f"Missing parameters: {missing}")
 
     root = Path(root)
-    paths = list(root.glob("**/*.parquet"))
-    if not paths:
-        raise FileNotFoundError("No parquet files found.")
+    BANNED = {"ncl_output.parquet", "merged.parquet"}
+    SKIP_IN_PATH = {"K"}  # constant across all folders, not in folder name
 
-    FLOAT_COLS = {"alphar", "K", "mu", "theta", "s", "l", "bpmin"}
-    EPS = 1e-6
+    def fmt_fragment(k, v):
+        if k in {"alphar", "alphad", "kB", "kU"}:
+            return f"{k}={v:.2e}"
+        return f"{k}={v}"
 
-    def make_filter(k, v):
-        if k in FLOAT_COLS:
-            return pl.col(k).is_between(v - EPS, v + EPS)
-        return pl.col(k) == v
+    fragments = [fmt_fragment(k, v) for k, v in params.items() if k not in SKIP_IN_PATH]
 
-    for path in tqdm(paths, desc="Scanning parquet files"):
-        df = (
-            pl.scan_parquet(path)
-            .filter(pl.all_horizontal([make_filter(k, v) for k, v in params.items()]))
-            .collect()
-        )
-        if df.height > 0:
-            return df
+    matching_folder = None
+    for folder in root.rglob("*"):
+        if not folder.is_dir():
+            continue
+        if all(frag in folder.name for frag in fragments):
+            matching_folder = folder
+            break
 
-    raise ValueError("No dataframe found with the given parameters.")
+    if matching_folder is None:
+        raise FileNotFoundError(f"No folder found matching: {fragments}")
+
+    parquets = [p for p in matching_folder.glob("*.parquet") if p.name not in BANNED]
+    if not parquets:
+        raise FileNotFoundError(f"No parquet found in: {matching_folder}")
+
+    return pl.read_parquet(parquets[0])
 
 
 def _scalar_column_names(schema: pl.Schema) -> list[str]:

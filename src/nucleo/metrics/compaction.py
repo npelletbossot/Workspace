@@ -124,46 +124,55 @@ def clc_bp_speeds(
 
 
 def clc_compaction_landscape(alpha_matrix: np.ndarray) -> np.ndarray:
-    # Cumsumed for memory issues
-    return(
-        np.cumsum(alpha_matrix + (150/35) * (1 - alpha_matrix), axis=1)
-    )
+    """
+    Cumulative sum of alpha along the genome axis.
+    Used to compute sum(alpha, x0→x1) = C[x1] - C[x0] in O(1).
+    """
+    return np.cumsum(alpha_matrix, axis=1)
 
 
 def clc_compaction_speeds(
-        alpha_matrix_c: np.ndarray,
-        t_matrix: np.ndarray,
-        x_matrix: np.ndarray
-    ) -> np.ndarray:
-
-    n_i, n_j = len(t_matrix), len(t_matrix[0])
+    alpha_matrix_c: np.ndarray,
+    t_matrix: np.ndarray,
+    x_matrix: np.ndarray,
+    c_linker: float = 1.0,
+    c_nucleo: float = 150 / 35,
+) -> np.ndarray:
+    """
+    delta_bp = c_nucleo * delta_x + (c_linker - c_nucleo) * (C[x1] - C[x0])
+    v_bp     = delta_bp / delta_t
+    """
+    n_i, n_j = x_matrix.shape
     vc_array = np.full((n_i, n_j - 1), np.nan)
 
     for i in range(n_i):
         for j in range(n_j - 1):
+            xf_float = x_matrix[i, j + 1]
+            if np.isnan(xf_float):
+                continue
 
-            xf_float = x_matrix[i, j+1]
+            xi = int(x_matrix[i, j])
+            xf = int(xf_float)
+            dt = t_matrix[i, j + 1] - t_matrix[i, j]
+            if dt <= 0:
+                continue
 
-            if not np.isnan(xf_float):
+            delta_x  = xf - xi
+            sum_alpha = alpha_matrix_c[i, xf] - alpha_matrix_c[i, xi]
 
-                xi = int(x_matrix[i, j])
-                xf = int(xf_float)
-
-                dx_c = alpha_matrix_c[i, xf] - alpha_matrix_c[i, xi]
-                dt = t_matrix[i, j+1] - t_matrix[i, j]
-
-                if dt > 0:
-                    vc_array[i, j] = dx_c / dt
+            delta_bp = c_nucleo * delta_x + (c_linker - c_nucleo) * sum_alpha
+            vc_array[i, j] = delta_bp / dt
 
     return vc_array
 
 
 def clc_compaction_statistics(
-        alpha_matrix: np.ndarray, t_matrix: np.ndarray, x_matrix: np.ndarray
+        alpha_matrix: np.ndarray, t_matrix: np.ndarray, x_matrix: np.ndarray,
+        c_linker: float, c_nucleo: float
     ):
 
     alpha_matrix_c = clc_compaction_landscape(alpha_matrix)
-    vc_array = clc_compaction_speeds(alpha_matrix_c, t_matrix, x_matrix)
+    vc_array = clc_compaction_speeds(alpha_matrix_c, t_matrix, x_matrix, c_linker, c_nucleo)
 
     vc_mean = np.nanmean(vc_array)
     vc_med  = np.nanmedian(vc_array)

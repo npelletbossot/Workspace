@@ -278,6 +278,7 @@ def sw_nucleo(
     # Rates of Remodelling factors
     kB = klist * ktot
     kU = (1.0 - klist) * ktot
+    K =  kB / (kB + kU)
     
     # Compactions
     c_linker = 10 / 10
@@ -289,7 +290,7 @@ def sw_nucleo(
             f"landscape={landscape}__s={s}__l={l}__bpmin={bpmin}__"
             f"mu={mu}__theta={theta}__"
             f"alphad={alphad:.2e}__"
-            f"alphar={alphar:.2e}__kB={kB:.2e}__kU={kU:.2e}__"
+            f"alphar={alphar:.2e}__K={K:.2e}__"
             f"nt={nt}__"
     )
     
@@ -473,7 +474,7 @@ def sw_nucleo(
         
         # Instantaneous Speeds [Base Pairs][vb_*]
         vc_points, vc_distrib, vc_mean, vc_med, vc_mp = clc_compaction_statistics(
-            alpha_matrix, t_matrix, x_matrix
+            alpha_matrix, t_matrix, x_matrix, c_linker, c_nucleo
         )
                     
     except Exception as e:
@@ -540,8 +541,8 @@ def sw_nucleo(
             'rtot_capt' : rtot_capt,
             'rtot_rest' : rtot_rest,
             'alphar'    : alphar,
-            'K'         : kB / (kB + kU),
-            'ktot'      : kB + kU,
+            'K'         : K,
+            'ktot'      : ktot,
             'kB'        : kB,
             'kU'        : kU,
             'c_linker'  : c_linker,
