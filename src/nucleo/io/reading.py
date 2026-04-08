@@ -65,32 +65,33 @@ def reading_one_parquet(root: str | Path) -> pl.DataFrame:
 def finding_one_parquet(root: str, params: dict) -> pl.DataFrame:
 
     required_params = {
-        "algorithm", "fact", "factmode",    # Algo
-        "landscape", "s", "l", "bpmin",     # Chromatin
-        "mu", "theta",                      # Loop Extrusion
-        "alphar", "K"}                      # Remodelers
-
+        "algorithm", "fact", "factmode",
+        "landscape", "s", "l", "bpmin",
+        "mu", "theta", "alphar", "K"
+    }
     missing = required_params - params.keys()
     if missing:
         raise ValueError(f"Missing parameters: {missing}")
 
     root = Path(root)
-
-    # 1. Trouver tous les fichiers parquet
     paths = list(root.glob("**/*.parquet"))
-
     if not paths:
         raise FileNotFoundError("No parquet files found.")
 
-    # 2. Parcourir les fichiers et filtrer
-    for path in tqdm(paths, desc="Scanning parquet files"):
+    FLOAT_COLS = {"alphar", "K", "mu", "theta", "s", "l", "bpmin"}
+    EPS = 1e-6
 
+    def make_filter(k, v):
+        if k in FLOAT_COLS:
+            return pl.col(k).is_between(v - EPS, v + EPS)
+        return pl.col(k) == v
+
+    for path in tqdm(paths, desc="Scanning parquet files"):
         df = (
             pl.scan_parquet(path)
-            .filter(pl.all_horizontal([pl.col(k) == v for k, v in params.items()]))
+            .filter(pl.all_horizontal([make_filter(k, v) for k, v in params.items()]))
             .collect()
         )
-
         if df.height > 0:
             return df
 
