@@ -13,6 +13,9 @@
 # --- Go to project folder --- #
 cd /Xnfs/physbiochrom/npellet/nucleo
 
+# --- Export exact date --- #
+export LAUNCH_DATE=$(date +%Y-%m-%d)
+
 # --- Activate venv with absolute path --- #
 source /Xnfs/physbiochrom/npellet/nucleo/.venv_nucleo_PSMN/bin/activate
 

@@ -184,9 +184,10 @@ def execute_in_parallel(config: str,
             num_workers = 12
 
     project_name   = project['project_name']
-    folder_name    = f"{cfg['meta']['path']}_{task_suffix}"
+    folder_name    = f"{cfg['meta']['path']}__{task_suffix}"
     study_label    = f"{study}" if study else ""
-    subfolder_name = f"{project_name}/outputs/{study_label}__{mode.value}__{str(date.today())}/{folder_name}"
+    launch_date = os.getenv("LAUNCH_DATE", str(date.today()))
+    subfolder_name = f"{project_name}/outputs/{study_label}__{mode.value}__{launch_date}/{folder_name}"
 
     set_working_environment(base_dir=base_dir, subfolder=subfolder_name)
 

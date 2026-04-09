@@ -117,7 +117,7 @@ def writing_parquet(file:str, title: str, data_result: dict, data_info = False) 
         inspect_data_types(data_result)
 
     # Define the Parquet file path
-    data_file_name = os.path.join(title, f'{file}_{title}.parquet')
+    data_file_name = os.path.join(title, f'{file}__{title}.parquet')
     os.makedirs(title, exist_ok=True)
 
     # Prepare the data for Parquet

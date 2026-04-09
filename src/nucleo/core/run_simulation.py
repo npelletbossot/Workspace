@@ -228,7 +228,7 @@ def checking_inputs(
 
 
 def sw_nucleo(
-    algorithm: str, fact: str, factmode:str, destroy: bool,
+    algorithm: str, fact: str, factmode: str, destroy: bool,
     landscape: str, s: int, l: int, bpmin: int,
     mu: float, theta: float, 
     lmbda: float, alphaf: float, alphao: float, beta: float, alphad: float,
