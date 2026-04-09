@@ -81,7 +81,7 @@ def prepare_value(value):
         raise ValueError(f"Unsupported data type: {type(value)}")
 
 
-def writing_parquet(file:str, title: str, data_result: dict, data_info = False) -> None:
+def writing_parquet(title: str, data_result: dict, data_info = False) -> None:
     """
     Write a dictionary directly into a Parquet file using PyArrow.
     Ensures that all numerical values, arrays, and lists are properly handled.
