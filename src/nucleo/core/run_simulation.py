@@ -675,7 +675,7 @@ def sw_nucleo(
         inspect_data_types(data_result, launch=False)
 
         # Writing data
-        writing_parquet(file=path, title=title, data_result=data_result)
+        writing_parquet(title=title, data_result=data_result)
 
         # Clean raw datas
         del data_result
