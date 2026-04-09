@@ -140,7 +140,8 @@ def run_parallel(params: list[dict], formalism: dict, chromatin: dict, time: dic
 
 def execute_in_parallel(config: str,
                         execution_mode: str | None = None,
-                        slurm_params: dict | None = None) -> None:
+                        slurm_params: dict | None = None,
+                        study: str | None = None) -> None:
     """
     Launches multiple processes based on selected configuration and execution mode.
     - Auto-detects SLURM (PSMN)
@@ -184,7 +185,8 @@ def execute_in_parallel(config: str,
 
     project_name   = project['project_name']
     folder_name    = f"{cfg['meta']['path']}_{task_suffix}"
-    subfolder_name = f"{project_name}/outputs/{str(date.today())}__{mode.value}/{folder_name}"
+    study_label    = f"{study}" if study else ""
+    subfolder_name = f"{project_name}/outputs/{study_label}__{mode.value}__{str(date.today())}/{folder_name}"
 
     set_working_environment(base_dir=base_dir, subfolder=subfolder_name)
 
@@ -245,7 +247,7 @@ def main(STUDY):
         start_time = time.time()
 
         try:
-            execute_in_parallel(config)
+            execute_in_parallel(config, study=STUDY)
         except Exception as e:
             print(f"[ERROR in {config}] Process failed:\n{e}")
             continue

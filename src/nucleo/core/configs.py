@@ -112,8 +112,8 @@ def choose_configuration(config: str) -> dict:
         "rtot_rest": 1/6,   # Rate of resting (1/6)
         # "kB" : 0.50,        # Rate of FACT Binding
         # "kU": 0.50,         # Rate of FACT Unbinding
-        "ktot": 1.0,       # New formalism
-        "klist": 1.0       # New formalism
+        "ktot": 1.0,        # New formalism -> Checking that even with =1.0 it doesn't affect if non called
+        "klist": 1.0        # New formalism -> Checking that even with =1.0 it doesn't affect if non called
     }
     
     # ──────────────────────────────────
