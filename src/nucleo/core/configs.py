@@ -99,10 +99,10 @@ def choose_configuration(config: str) -> dict:
     }
 
     PROBAS = {
-        "lmbda": 0.40,      # Probability of in vitro condensin to reverse and not beeing accepted
         "alphaf": 1.00,     # Probability of binding if linker
         "alphao": 0.00,     # Probability of binding if obstacle
         "beta": 0.00,       # Probability of in vitro condensin to unbind
+        "alphac": 0.60,     # Probability of in vitro condensin to extrude and beeing accepted
         "alphad": 0.00,     # Probability of nucleosome to drop out
         "alphar": 0.00      # Probability of binding while FACT is there
     }
@@ -125,10 +125,10 @@ def choose_configuration(config: str) -> dict:
         "probas": {
             "mu": np.arange(100, 605, 5),
             "theta": np.arange(1, 101, 1),
-            "lmbda": np.array([0.00], dtype=float),
             "alphao": np.array([PROBAS["alphao"]], dtype=float),
             "alphaf": np.array([PROBAS["alphaf"]], dtype=float),
             "beta": np.array([PROBAS["beta"]], dtype=float),
+            "alphac": np.array([1.00], dtype=float),
             "alphad": np.array([0.00], dtype=float),
             "alphar": np.array([0.00], dtype=float),
         },
@@ -153,10 +153,11 @@ def choose_configuration(config: str) -> dict:
         "probas": {
             "mu": np.array([150, 180], dtype=int),
             "theta": np.array([20, 90], dtype=int),
-            "lmbda": np.array([0.00], dtype=float),
             "alphao": np.array([PROBAS["alphao"]], dtype=float),
             "alphaf": np.array([PROBAS["alphaf"]], dtype=float),
             "beta": np.array([PROBAS["beta"]], dtype=float),
+            "alphac": np.array([1.00], dtype=float),
+            "alphad": np.array([0.00], dtype=float),
             "alphar": np.array([0.00], dtype=float)
         },
         "rates": {
@@ -183,10 +184,10 @@ def choose_configuration(config: str) -> dict:
         "probas": {
             "mu": np.array([150], dtype=int),
             "theta": np.array([20, 90], dtype=int),
-            "lmbda": np.array([PROBAS["lmbda"]], dtype=float),
             "alphao": np.array([PROBAS["alphao"]], dtype=float),
             "alphaf": np.array([PROBAS["alphaf"]], dtype=float),
             "beta": np.array([PROBAS["beta"]], dtype=float),
+            "alphac": np.array([PROBAS["alphac"]], dtype=float),
             "alphad": np.array([PROBAS["alphad"]], dtype=float),
             "alphar": np.arange(0.00, 1.00 + 0.10, 0.10, dtype=float),
         },
@@ -214,10 +215,10 @@ def choose_configuration(config: str) -> dict:
         "probas": {
             "mu": np.array([210], dtype=int),
             "theta": np.array([90], dtype=int),
-            "lmbda": np.array([PROBAS["lmbda"]], dtype=float),
             "alphao": np.array([PROBAS["alphao"]], dtype=float),
             "alphaf": np.array([PROBAS["alphaf"]], dtype=float),
             "beta": np.array([PROBAS["beta"]], dtype=float),
+            "alphac": np.array([PROBAS["alphac"]], dtype=float),
             "alphad": np.array([PROBAS["alphad"]], dtype=float),
             "alphar": np.array([PROBAS["alphar"]], dtype=float),
         },

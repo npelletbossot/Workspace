@@ -96,7 +96,9 @@ def generate_param_combinations(cfg: dict) -> list[dict]:
     # The keys must be in arrays
     keys = [
         'landscape', 's', 'l', 'bpmin',
-        'mu', 'theta', 'lmbda', 'alphaf', 'alphao', 'beta', 'alphad',
+        'mu', 'theta', 
+        'alphaf', 'alphao', 'beta', 
+        'alphac', 'alphad',
         'ktot', 'klist', 'alphar',
         'rtot_capt', 'rtot_rest'
     ]
@@ -105,7 +107,8 @@ def generate_param_combinations(cfg: dict) -> list[dict]:
     values = product(
         geometry['landscape'], geometry['s'], geometry['l'], geometry['bpmin'],
         probas['mu'], probas['theta'], 
-        probas['lmbda'], probas['alphaf'], probas['alphao'], probas['beta'], probas['alphad'],
+        probas['alphaf'], probas['alphao'], probas['beta'], 
+        probas['alphac'], probas['alphad'], 
         rates['ktot'], rates['klist'], probas['alphar'], 
         rates['rtot_capt'], rates['rtot_rest']
     )

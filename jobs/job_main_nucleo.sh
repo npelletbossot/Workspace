@@ -3,7 +3,7 @@
 #SBATCH --output=logs/nucleo_%A_%a.out
 #SBATCH --error=logs/nucleo_%A_%a.err
 #SBATCH --time=168:00:00
-#SBATCH --array=0-47%20
+#SBATCH --array=0-47%40
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=20

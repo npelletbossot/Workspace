@@ -305,7 +305,7 @@ def gillespie_algo_two_steps(
     p: np.ndarray,
     alphao: float,
     beta: float,
-    lmbda: float,
+    alphac: float,
     rtot_capt: float,
     rtot_rest: float,
     alphar: float,
@@ -526,7 +526,7 @@ def gillespie_algo_two_steps(
             i0 = np.copy(i) + 1
                   
             # --- Capturing : Stochasticity --- #
-            if r0_capt < r_capt * (1-lmbda):
+            if r0_capt < r_capt * alphac:
                 LE = True
             else : 
                 LE = False

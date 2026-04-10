@@ -69,7 +69,7 @@ from nucleo.io.writing import inspect_data_types, writing_parquet
 def checking_inputs(
     algorithm, fact, factmode,
     landscape, s, l, bpmin, 
-    mu, theta, lmbda, alphaf, alphao, beta, alphad,
+    mu, theta, alphaf, alphao, beta, alphac, alphad,
     alphar, ktot, klist,
     Lmin, Lmax, bps, origin,
     tmax, dt,
@@ -100,8 +100,8 @@ def checking_inputs(
         Parameter controlling random obstacle density (>= 0).
     theta : np.integer
         Parameter controlling mean alpha values (>= 0).
-    lmbda : np.ndarray
-        Probability modifier array. Must satisfy 0 ≤ lmbda ≤ 1.
+    alphac : np.ndarray
+        Probability modifier array. Must satisfy 0 ≤ alphac ≤ 1.
     alphaf : np.ndarray
         FACT-induced capture rate modifier (0 ≤ alphaf ≤ 1).
     alphao : np.ndarray
@@ -168,8 +168,8 @@ def checking_inputs(
             raise ValueError(f"Invalid value for mu: must be an int >= 0. Got {mu}.")
         if not isinstance(theta, np.integer) or theta < 0:
             raise ValueError(f"Invalid value for theta: must be an int >= 0. Got {theta}.")
-        for name, value in zip(["lmbda", "alphaf", "alphao", "beta", "alphad", "alphar"], 
-                            [lmbda, alphaf, alphao, beta, alphad, alphar]):
+        for name, value in zip(["alphaf", "alphao", "beta", "alphac", "alphad", "alphar"], 
+                            [alphaf, alphao, beta, alphac, alphad, alphar]):
             if not ((0 <= value).all() and (value <= 1).all()):
                 raise ValueError(
                     f"{name} must be between 0 and 1. "
@@ -231,7 +231,7 @@ def sw_nucleo(
     algorithm: str, fact: str, factmode: str, destroy: bool,
     landscape: str, s: int, l: int, bpmin: int,
     mu: float, theta: float, 
-    lmbda: float, alphaf: float, alphao: float, beta: float, alphad: float,
+    alphaf: float, alphao: float, beta: float, alphac: float, alphad: float,
     rtot_capt: float, rtot_rest: float,
     alphar: float, ktot: float, klist: float,
     Lmin: int, Lmax: int, bps: int, origin: int,
@@ -249,10 +249,10 @@ def sw_nucleo(
         bpmin (int): Minimum base pair threshold.
         mu (float): Mean value for the distribution used in the simulation.
         theta (float): Standard deviation for the distribution used in the simulation.
-        lmbda (float): Lambda parameter for the simulation.
         alphaf (float): Acceptance probability on linker sites.
         alphao (float): Acceptance probability on nucleosome sites.
         beta (float): Unfolding probability.
+        alphac (float) : Acceptance probability of in vitro condensin.
         rtot_capt (float): Reaction rate for capturing (inverse of characteristic time).
         rtot_rest (float): Reaction rate for resting (inverse of characteristic time).
         nt (int): Number of trajectories to simulate.
@@ -359,7 +359,7 @@ def sw_nucleo(
         # Gillespie Two-Steps
         elif algorithm == "two_steps":
             results, t_matrix, x_matrix = gillespie_algo_two_steps(
-                s, alpha_matrix, p, alphao, beta, lmbda, rtot_capt, rtot_rest, alphar, kB, kU, nt, tmax, dt, L, origin, bps, fact, factmode
+                s, alpha_matrix, p, alphao, beta, alphac, rtot_capt, rtot_rest, alphar, kB, kU, nt, tmax, dt, L, origin, bps, fact, factmode
             )  
 
         # Clean datas
@@ -412,8 +412,8 @@ def sw_nucleo(
         )
                 
         # Theoretical
-        v_mean_th = clc_th_speed(algorithm, alphaf, alphao, s, l, mu, lmbda, rtot_capt, rtot_rest)
-        v_mean_th_eff = clc_th_speed(algorithm, alphaf, alphao, s_mean, l_mean, mu, lmbda, rtot_capt, rtot_rest)
+        v_mean_th = clc_th_speed(algorithm, alphaf, alphao, s, l, mu, alphac, rtot_capt, rtot_rest)
+        v_mean_th_eff = clc_th_speed(algorithm, alphaf, alphao, s_mean, l_mean, mu, alphac, rtot_capt, rtot_rest)
     
     except Exception as e:
         print(f"Error in Analysis 2 - Trajectories: {e}")
@@ -537,7 +537,7 @@ def sw_nucleo(
             'alphaf'    : alphaf,
             'alphao'    : alphao,
             'beta'      : beta,
-            'lmbda'     : lmbda,
+            'alphac'    : alphac,
             'alphad'    : alphad,
             'rtot_capt' : rtot_capt,
             'rtot_rest' : rtot_rest,
@@ -715,10 +715,10 @@ def process_run(params: dict, formalism: dict, chromatin: dict, time: dict, meta
 
         mu=params['mu'],
         theta=params['theta'],
-        lmbda=params['lmbda'],
         alphaf=params['alphaf'],
         alphao=params['alphao'],
         beta=params['beta'],
+        alphac=params['alphac'],
         alphad=params['alphad'],
         alphar=params['alphar'],
         ktot=params['ktot'],
@@ -744,7 +744,8 @@ def process_run(params: dict, formalism: dict, chromatin: dict, time: dict, meta
         params["landscape"], params["s"], params["l"], params["bpmin"],
 
         params["mu"], params["theta"],
-        params["lmbda"], params["alphaf"], params["alphao"], params["beta"], params["alphad"],
+        params["alphaf"], params["alphao"], params["beta"], 
+        params["alphac"], params["alphad"],
         params["rtot_capt"], params["rtot_rest"],
         params["alphar"], params["ktot"], params["klist"],
         

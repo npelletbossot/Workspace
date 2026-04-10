@@ -25,7 +25,7 @@ from nucleo.metrics.utils import clc_distrib
 def clc_th_speed(
     algorithm: str,
     alphaf: float, alphao: float, s: int, l: int, 
-    mu: float, lmbda: float, rtot_capt: float, rtot_rest: float,
+    mu: float, alphac: float, rtot_capt: float, rtot_rest: float,
     ) -> float:
     """
     Calculate the theoretical average speed.
@@ -38,7 +38,7 @@ def clc_th_speed(
     
     elif algorithm == "two_steps":
         rates_mean = (1 / (rtot_capt)) + (1 / (rtot_rest))
-        return mu * (1 - lmbda) / rates_mean * alpha_mean
+        return mu * alphac / rates_mean * alpha_mean
 
 
 def clc_inst_speeds(
