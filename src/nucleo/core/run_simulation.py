@@ -525,6 +525,7 @@ def sw_nucleo(
             'algorithm' : algorithm,
             'fact'      : fact,
             'factmode'  : factmode,
+            'destroy'   : destroy,
 
             # --- Principal Parameters --- #
             'landscape' : landscape,

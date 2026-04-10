@@ -65,7 +65,7 @@ def reading_one_parquet(root: str | Path) -> pl.DataFrame:
 def finding_one_parquet(root: str, params: dict) -> pl.DataFrame:
 
     required_params = {
-        "algorithm", "fact", "factmode",
+        "algorithm", "fact", "factmode", # "destroy",
         "landscape", "s", "l", "bpmin",
         "mu", "theta", "alphar", "K"
     }
@@ -93,14 +93,16 @@ def finding_one_parquet(root: str, params: dict) -> pl.DataFrame:
     print(f"Scanning {len(paths)} parquet files...")
 
     df = (
-        pl.scan_parquet(paths, extra_columns="ignore")
+        pl.scan_parquet(paths, include_file_paths="source_file")
         .filter(pl.all_horizontal([make_filter(k, v) for k, v in params.items()]))
         .collect()
     )
 
     if df.height == 0:
         raise ValueError("No dataframe found with the given parameters.")
-
+    else:
+        print(f"Found in : {df['source_file'].unique().to_list()}")
+        df = df.drop("source_file")
     return df
 
 
