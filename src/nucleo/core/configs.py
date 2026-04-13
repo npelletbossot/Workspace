@@ -101,7 +101,7 @@ def choose_configuration(config: str) -> dict:
     PROBAS = {
         "alphaf": 1.00,     # Probability of binding if linker
         "alphao": 0.00,     # Probability of binding if obstacle
-        "beta": 0.00,       # Probability of in vitro condensin to unbind
+        "beta": 0.00,       # Probability of in vitro condensin to unbind and leaving DNA
         "alphac": 0.60,     # Probability of in vitro condensin to extrude and beeing accepted
         "alphad": 0.00,     # Probability of nucleosome to drop out
         "alphar": 0.00      # Probability of binding while FACT is there
