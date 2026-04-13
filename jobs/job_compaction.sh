@@ -20,4 +20,5 @@ export LAUNCH_DATE=$(date +%Y-%m-%d)
 source /Xnfs/physbiochrom/npellet/nucleo/.venv_nucleo_PSMN/bin/activate
 
 # --- Run script --- #
-python3 main_compaction.py
+python3 /Xnfs/physbiochrom/npellet/nucleo/src/nucleo/mains/main_compaction.py
+
