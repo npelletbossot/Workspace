@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=ncl_main
+#SBATCH --job-name=ncl_nucleo
 #SBATCH --output=logs/nucleo_%A_%a.out
 #SBATCH --error=logs/nucleo_%A_%a.err
 #SBATCH --time=168:00:00
@@ -20,4 +20,4 @@ export LAUNCH_DATE=$(date +%Y-%m-%d)
 source /Xnfs/physbiochrom/npellet/nucleo/.venv_nucleo_PSMN/bin/activate
 
 # --- Run script --- #
-python3 main.py
+python3 main_nucleo.py
