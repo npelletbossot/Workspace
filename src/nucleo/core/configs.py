@@ -34,54 +34,54 @@ def choose_configuration(config: str) -> dict:
     FORMALISMS = {
         # one_step
         "alg1": {
-            "algorithm": "one_step",
-            "destroy": False,
+            "algo": "1S",
+            "dstr": False,
             "fact": False,
-            "factmode": "none",
+            "mode": "none",
         },
         
         # one_step + destruction
         "alg1_destroy": {
-            "algorithm": "one_step",
-            "destroy": True,
+            "algo": "1S",
+            "dstr": True,
             "fact": False,
-            "factmode": "none",
+            "mode": "none",
         },
         
         # two steps
         "alg2": {
-            "algorithm": "two_steps",
-            "destroy": False,
+            "algo": "2S",
+            "dstr": False,
             "fact": False,
-            "factmode": "none",
+            "mode": "none",
         },
         
         # two_steps + fact passive
         "alg2_passive_full": {
-            "algorithm": "two_steps",
-            "destroy": False,
+            "algo": "2S",
+            "dstr": False,
             "fact": True,
-            "factmode": "passive_full",
+            "mode": "passfull",
         },
         "alg2_passive_memory": {
-            "algorithm": "two_steps",
-            "destroy": False,
+            "algo": "2S",
+            "dstr": False,
             "fact": True,
-            "factmode": "passive_memory",
+            "mode": "passmemo",
         },
         
         # two_steps + fact active
         "alg2_active_full": {
-            "algorithm": "two_steps",
-            "destroy": False,
+            "algo": "2S",
+            "dstr": False,
             "fact": True,
-            "factmode": "active_full",
+            "mode": "actifull",
         },
         "alg2_active_memory": {
-            "algorithm": "two_steps",
-            "destroy": False,
+            "algo": "2S",
+            "dstr": False,
             "fact": True,
-            "factmode": "active_memory",
+            "mode": "actimemo",
         },
         
     }
@@ -108,12 +108,13 @@ def choose_configuration(config: str) -> dict:
     }
 
     RATES = {
-        "rtot_capt": 1/6,   # Rate of capturing (1/6)
-        "rtot_rest": 1/6,   # Rate of resting (1/6)
+        "rcapt": 1/6,   # Rate of capturing (1/6)
+        "rrest": 1/6,   # Rate of resting (1/6)
         # "kB" : 0.50,        # Rate of FACT Binding
         # "kU": 0.50,         # Rate of FACT Unbinding
-        "ktot": 1.0,        # New formalism -> Checking that even with =1.0 it doesn't affect if non called
-        "klist": 1.0        # New formalism -> Checking that even with =1.0 it doesn't affect if non called
+        "Ktot" : 1.0,       # = kB + kU         : New formalism -> Checking that even with =1.0 it doesn't affect if non called          
+        "Kp": 1.0,          # = kB / (kB + kU)  : New formalism -> Checking that even with =1.0 it doesn't affect if non called
+        "Kz": 1.0           # = P_F(t=0)        : New formalism -> Checking that even with =1.0 it doesn't affect if non called
     }
     
     # ──────────────────────────────────
@@ -133,10 +134,11 @@ def choose_configuration(config: str) -> dict:
             "alphar": np.array([0.00], dtype=float),
         },
         "rates": {
-            "rtot_capt": np.array([RATES["rtot_capt"]], dtype=float),
-            "rtot_rest": np.array([RATES["rtot_rest"]], dtype=float),
-            "ktot": np.array([RATES["ktot"]], dtype=float),
-            "klist": np.array([RATES["klist"]], dtype=float)
+            "rcapt": np.array([RATES["rcapt"]], dtype=float),
+            "rrest": np.array([RATES["rrest"]], dtype=float),
+            "Ktot": np.array([RATES["Ktot"]], dtype=float),
+            "Kp": np.array([RATES["Kp"]], dtype=float),
+            "Kz": np.array([RATES["Kz"]], dtype=float),
         },
         "meta": {
             "nt": 10_000,
@@ -161,10 +163,11 @@ def choose_configuration(config: str) -> dict:
             "alphar": np.array([0.00], dtype=float)
         },
         "rates": {
-            "rtot_capt": np.array([RATES["rtot_capt"]], dtype=float),
-            "rtot_rest": np.array([RATES["rtot_rest"]], dtype=float),
-            "ktot": np.array([RATES["ktot"]], dtype=float),
-            "klist": np.array([RATES["klist"]], dtype=float)
+            "rcapt": np.array([RATES["rcapt"]], dtype=float),
+            "rrest": np.array([RATES["rrest"]], dtype=float),
+            "Ktot": np.array([RATES["Ktot"]], dtype=float),
+            "Kp": np.array([RATES["Kp"]], dtype=float),
+            "Kz": np.array([RATES["Kz"]], dtype=float),
         },
         "meta": {
             "nt": 10_000,
@@ -176,7 +179,7 @@ def choose_configuration(config: str) -> dict:
     TWOSTEPS__BASE = {
         "formalism": {**FORMALISMS['alg2']},
         "geometry": {
-            "landscape": np.array(['homogeneous', 'periodic', 'random']),
+            "landscape": np.array(['homogen', 'periodic', 'random']),
             "s": np.array([35], dtype=int),
             "l": np.array([10, 35, 100], dtype=int),
             "bpmin": np.array([0], dtype=int)
@@ -192,10 +195,11 @@ def choose_configuration(config: str) -> dict:
             "alphar": np.arange(0.00, 1.00 + 0.10, 0.10, dtype=float),
         },
         "rates": {
-            "rtot_capt": np.array([RATES["rtot_capt"]], dtype=float),
-            "rtot_rest": np.array([RATES["rtot_rest"]], dtype=float),
-            "ktot": np.array([1.00], dtype=float),
-            "klist": np.arange(0.0, 1.0 + 0.10, 0.10, dtype=float),
+            "rcapt": np.array([RATES["rcapt"]], dtype=float),
+            "rrest": np.array([RATES["rrest"]], dtype=float),
+            "Ktot": np.array([1.00], dtype=float),
+            "Kp": np.arange(0.0, 1.0 + 0.10, 0.10, dtype=float),
+            "Kz": np.arange(0.0, 1.0 + 0.10, 0.10, dtype=float),
         },
         "meta": {
             "nt": 10_000,
@@ -205,16 +209,16 @@ def choose_configuration(config: str) -> dict:
     }
     
     TEST__BASE = {
-        "formalism": {**FORMALISMS['alg2']},
+        "formalism": {**FORMALISMS['alg2_active_memory']},
         "geometry": {
-            "landscape": np.array(['homogeneous', 'periodic', 'random']),
-            "s": np.array([150], dtype=int),
+            "landscape": np.array(['homogen', 'periodic', 'random']),
+            "s": np.array([35], dtype=int),
             "l": np.array([10], dtype=int),
             "bpmin": np.array([0], dtype=int)
         },
         "probas": {
-            "mu": np.array([210], dtype=int),
-            "theta": np.array([90], dtype=int),
+            "mu": np.array([150], dtype=int),
+            "theta": np.array([100], dtype=int),
             "alphao": np.array([PROBAS["alphao"]], dtype=float),
             "alphaf": np.array([PROBAS["alphaf"]], dtype=float),
             "beta": np.array([PROBAS["beta"]], dtype=float),
@@ -223,10 +227,11 @@ def choose_configuration(config: str) -> dict:
             "alphar": np.array([PROBAS["alphar"]], dtype=float),
         },
         "rates": {
-            "rtot_capt": np.array([RATES["rtot_capt"]], dtype=float),
-            "rtot_rest": np.array([RATES["rtot_rest"]], dtype=float),
-            "ktot": np.array([RATES["ktot"]], dtype=float),
-            "klist": np.array([RATES["klist"]], dtype=float)
+            "rcapt": np.array([RATES["rcapt"]], dtype=float),
+            "rrest": np.array([RATES["rrest"]], dtype=float),
+            "Ktot": np.array([RATES["Ktot"]], dtype=float),
+            "Kp": np.arange(0.0, 1.0 + 0.10, 0.10, dtype=float),
+            "Kz": np.arange(0.0, 1.0 + 0.10, 0.10, dtype=float),
         },
         "meta": {
             "nt": 100,
@@ -246,7 +251,7 @@ def choose_configuration(config: str) -> dict:
         "NU": {
             **ONESTEP__BASE,
             "geometry": {
-                "landscape": np.array(['random', 'periodic', 'homogeneous']),
+                "landscape": np.array(['homogen', 'periodic', 'random']),
                 "s": np.array([150], dtype=int),
                 "l": np.array([10], dtype=int),
                 "bpmin": np.array([0], dtype=int)
@@ -342,7 +347,7 @@ def choose_configuration(config: str) -> dict:
         "RYU": {
             **TWOSTEPS__BASE,
             "geometry": {
-                "landscape": np.array(['random', 'periodic', 'homogeneous']),
+                "landscape": np.array(['homogen', 'periodic', 'random']),
                 "s": np.array([150], dtype=int),
                 "l": np.array([10], dtype=int),
                 "bpmin": np.array([0], dtype=int)
@@ -360,7 +365,7 @@ def choose_configuration(config: str) -> dict:
             "formalism": {**FORMALISMS["alg2_passive_full"]},
             "meta": {
                 **TWOSTEPS__BASE["meta"],
-                "path": f"{PROJECT['project_name']}__passivefull"
+                "path": f"{PROJECT['project_name']}__passfull"
             }
         },
 
@@ -369,7 +374,7 @@ def choose_configuration(config: str) -> dict:
             "formalism": {**FORMALISMS["alg2_passive_memory"]},
             "meta": {
                 **TWOSTEPS__BASE["meta"],
-                "path": f"{PROJECT['project_name']}__passivememory"
+                "path": f"{PROJECT['project_name']}__passmemo"
             }
         },
 
@@ -378,7 +383,7 @@ def choose_configuration(config: str) -> dict:
             "formalism": {**FORMALISMS["alg2_active_full"]},
             "meta": {
                 **TWOSTEPS__BASE["meta"],
-                "path": f"{PROJECT['project_name']}__activefull"
+                "path": f"{PROJECT['project_name']}__actifull"
             }
         },
 
@@ -387,7 +392,7 @@ def choose_configuration(config: str) -> dict:
             "formalism": {**FORMALISMS["alg2_active_memory"]},
             "meta": {
                 **TWOSTEPS__BASE["meta"],
-                "path": f"{PROJECT['project_name']}__activememory"
+                "path": f"{PROJECT['project_name']}__actimemo"
             }
         },
         
@@ -395,12 +400,6 @@ def choose_configuration(config: str) -> dict:
         
         "TEST": {
             **TEST__BASE,
-            "probas": {
-                **TEST__BASE["probas"],
-                "mu": np.array([160], dtype=int),
-                "theta": np.array([20, 200], dtype=int)
-            },
-            "formalism": {**FORMALISMS['alg1']},
             "meta": {
                 **TEST__BASE["meta"],
                 "path": f"{PROJECT['project_name']}__test"
@@ -432,7 +431,7 @@ def choose_configuration(config: str) -> dict:
         "FIGURE_2": {
             **ONESTEP__BASE,
             "geometry": {
-                "landscape": np.array(['homogeneous']),
+                "landscape": np.array(['homogen']),
                 "s": np.array([150], dtype=int),
                 "l": np.array([10], dtype=int),
                 "bpmin": np.array([0], dtype=int)
@@ -452,7 +451,7 @@ def choose_configuration(config: str) -> dict:
         "FIGURE_3": {
             **ONESTEP__BASE,
             "geometry": {
-                "landscape": np.array(['homogeneous']),
+                "landscape": np.array(['homogen']),
                 "s": np.array([150], dtype=int),
                 "l": np.array([10], dtype=int),
                 "bpmin": np.array([0], dtype=int)

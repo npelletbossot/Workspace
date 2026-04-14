@@ -135,7 +135,7 @@ def clc_alpha_matrix(
         np.ndarray: Matrix of each landscape corresponding to a trajectory
     """
 
-    alpha_functions = {'periodic', 'one_random', 'random', 'homogeneous'}
+    alpha_functions = {'periodic', 'one_random', 'random', 'homogen'}
     
     if landscape not in alpha_functions:
         raise ValueError(f"Unknown landscape: {landscape}")
@@ -148,7 +148,7 @@ def clc_alpha_matrix(
         alpha_array = alpha_random(s, l, alphaf, alphao, Lmin, Lmax, bps)
         alpha_matrix = np.tile(alpha_array, (nt,1))
     
-    elif landscape == 'homogeneous' :
+    elif landscape == 'homogen' :
         alpha_array = alpha_homogeneous(s, l, alphaf, alphao, Lmin, Lmax, bps)
         alpha_matrix = np.tile(alpha_array, (nt,1))
 

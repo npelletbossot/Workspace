@@ -67,10 +67,13 @@ from nucleo.io.writing import inspect_data_types, writing_parquet
 
 
 def checking_inputs(
-    algorithm, fact, factmode,
+    algo, fact, mode,
     landscape, s, l, bpmin, 
-    mu, theta, alphaf, alphao, beta, alphac, alphad,
-    alphar, ktot, klist,
+    mu, theta, 
+    alphaf, alphao, beta,
+    rcapt, rrest,
+    alphac, alphad, alphar, 
+    Ktot, Kp, Kz,
     Lmin, Lmax, bps, origin,
     tmax, dt,
     nt, path, data_return, total_return
@@ -146,16 +149,16 @@ def checking_inputs(
     try:
                  
         # Formalism
-        if algorithm not in ["one_step", "two_steps"]:
-            raise ValueError(f"Invalid value for algorithm you set : algorithm={algorithm}")
-        if (algorithm == "one_step") and ((fact != False) or (factmode != "none")):
-            raise ValueError(f"Error with algorithm and fact you set : algorithm={algorithm} - fact={fact} - factmode={factmode}")
+        if algo not in ["1S", "2S"]:
+            raise ValueError(f"Invalid value for algorithm you set : algorithm={algo}")
+        if (algo == "one_step") and ((fact != False) or (mode != "none")):
+            raise ValueError(f"Error with algorithm and fact you set : algorithm={algo} - fact={fact} - mode={mode}")
         
-        if factmode not in ["none", "passive_full", "passive_memory", "active_full","active_memory", "pheno_full", "pheno_memory"]:
-            raise ValueError(f"You set factmode={factmode} for remodelling which is not a valid mode")  
+        if mode not in ["none", "passfull", "passmemo", "actifull","actimemo"]:
+            raise ValueError(f"You set factmode={mode} for remodelling which is not a valid mode")  
 
         # Obstacles
-        if landscape not in {"homogeneous", "periodic", "random"}:
+        if landscape not in {"homogen", "periodic", "random"}:
             raise ValueError(f"Invalid landscape: {landscape}. Must be 'homogeneous', 'periodic', or 'random'.")
         for name, value in [("s", s), ("l", l), ("bpmin", bpmin)]:
             if not isinstance(value, np.integer) or value < 0:
@@ -163,7 +166,7 @@ def checking_inputs(
         if l == 0:
             raise ValueError("You cannot set l=0, there is absolutly accessible places.")
 
-        # Probabilities
+        # Probabilities and Rates
         if not isinstance(mu, np.integer) or mu < 0:
             raise ValueError(f"Invalid value for mu: must be an int >= 0. Got {mu}.")
         if not isinstance(theta, np.integer) or theta < 0:
@@ -175,17 +178,25 @@ def checking_inputs(
                     f"{name} must be between 0 and 1. "
                     f"Got array with min={value.min()}, max={value.max()}."
                 )
-                
-        # Rates of Remodelling factors
-        if ktot <= 0:
+            
+        # Rates
+        for name, val in [("rcapt", rcapt), ("rrest", rrest)]:
+            if not isinstance(val, (float, int)) or val <= 0:
+                raise ValueError(
+                    f"Invalid {name}={val}: must be a float strictly > 0."
+                )
+    
+        # --- Ktot (kB + kU) ---
+        if Ktot <= 0:
             raise ValueError(
-                f"Invalid ktot={ktot}: must be a float strictly > 0."
+                f"Invalid Ktot={Ktot}: must be a float strictly > 0."
             )
-        kcheck = np.asarray(klist)
+        # --- Kp and Kz (probabilities) ---
+        kcheck = np.asarray([Kp, Kz])
         if not np.all((0.0 <= kcheck) & (kcheck <= 1.0)):
             raise ValueError(
-                f"Invalid K values: must be in [0, 1]. Got {kcheck}."
-            ) 
+                f"Invalid Kp/Kz values: must be in [0, 1]. Got {kcheck}."
+            )
 
         # Chromatin
         if Lmin != 0:
@@ -228,12 +239,13 @@ def checking_inputs(
 
 
 def sw_nucleo(
-    algorithm: str, fact: str, factmode: str, destroy: bool,
+    algo: str, fact: str, mode: str, dstr: bool,
     landscape: str, s: int, l: int, bpmin: int,
     mu: float, theta: float, 
-    alphaf: float, alphao: float, beta: float, alphac: float, alphad: float,
-    rtot_capt: float, rtot_rest: float,
-    alphar: float, ktot: float, klist: float,
+    alphaf: float, alphao: float, beta: float, 
+    rcapt: float, rrest: float,
+    alphac: float, alphad: float, alphar: float, 
+    Ktot: float, Kp: float, Kz: float,
     Lmin: int, Lmax: int, bps: int, origin: int,
     tmax: float, dt: float,
     nt: int, path: str,
@@ -275,27 +287,22 @@ def sw_nucleo(
 
     # ------------------- Initialization ------------------- #
     
-    # Rates of Remodelling factors
-    kB = klist * ktot
-    kU = (1.0 - klist) * ktot
-    K =  kB / (kB + kU)
-    
     # Compactions
     c_linker = 10 / 10
     c_nucleo = 150 / 35
 
     # Title & Folder    
     title = (
-            f"algorithm={algorithm}__fact={fact}__factmode={factmode}__destroy={destroy}__"
-            f"landscape={landscape}__s={s}__l={l}__bpmin={bpmin}__"
+            f"algo={algo}__fact={fact}__mode={mode}__dstr={dstr}__"
+            f"land={landscape}__s={s}__l={l}__bpmin={bpmin}__"
             f"mu={mu}__theta={theta}__"
-            f"alphad={alphad:.2e}__"
-            f"alphar={alphar:.2e}__K={K:.2e}__"
-            f"nt={nt}__"
+            f"rcapt={rcapt:.1e}__rrest={rrest:.1e}__"
+            f"alphac={alphac:.1e}__alphad={alphad:.1e}__alphar={alphar:.1e}__"
+            f"Ktot={Ktot:.1e}__Kp={Kp:.1e}__Kz={Kz:.1e}__"
+            f"nt={nt:.1e}__"
     )
     
     # Chromatin
-    L = np.arange(Lmin, Lmax, bps)
     security_step = 1e-6
     L = np.arange(Lmin + security_step, Lmax + security_step, bps)
     lenght = (Lmax-Lmin) // bps
@@ -325,7 +332,7 @@ def sw_nucleo(
         )
             
         # Chromatin Generation : Destroying Obstacles
-        if destroy and not np.isclose(alphad, 0.0, atol=1e-8):
+        if dstr and not np.isclose(alphad, 0.0, atol=1e-8):
             first_point = Lmin
             last_point = Lmax
             for i in range(len(alpha_matrix)):
@@ -351,15 +358,24 @@ def sw_nucleo(
     try:
         
         # Gillespie One-Step
-        if algorithm == "one_step":
+        if algo == "1S":
             results, t_matrix, x_matrix = gillespie_algo_one_step(
                 nt, tmax, dt, alpha_matrix, beta, Lmax, lenght, origin, p
             )
             
         # Gillespie Two-Steps
-        elif algorithm == "two_steps":
+        elif algo == "2S":
             results, t_matrix, x_matrix = gillespie_algo_two_steps(
-                s, alpha_matrix, p, alphao, beta, alphac, rtot_capt, rtot_rest, alphar, kB, kU, nt, tmax, dt, L, origin, bps, fact, factmode
+                fact, mode,
+                alpha_matrix, p,
+                s, 
+                alphao, beta,
+                rcapt, rrest, 
+                alphac, alphar, 
+                Ktot, Kp, Kz, 
+                L, origin, bps,
+                tmax, dt, 
+                nt
             )  
 
         # Clean datas
@@ -412,8 +428,8 @@ def sw_nucleo(
         )
                 
         # Theoretical
-        v_mean_th = clc_th_speed(algorithm, alphaf, alphao, s, l, mu, alphac, rtot_capt, rtot_rest)
-        v_mean_th_eff = clc_th_speed(algorithm, alphaf, alphao, s_mean, l_mean, mu, alphac, rtot_capt, rtot_rest)
+        v_mean_th = clc_th_speed(algo, alphaf, alphao, s, l, mu, alphac, rcapt, rrest)
+        v_mean_th_eff = clc_th_speed(algo, alphaf, alphao, s_mean, l_mean, mu, alphac, rcapt, rrest)
     
     except Exception as e:
         print(f"Error in Analysis 2 - Trajectories: {e}")
@@ -450,13 +466,13 @@ def sw_nucleo(
     try:
         
         # All Jumps
-        if algorithm == "one_step":
+        if algo == "1S":
             pass
             t_analysis = t_matrix   # Does not use memory
             x_analysis = x_matrix   # Does not use memory
         
         # Forward Jumps
-        elif algorithm == "two_steps":
+        elif algo == "2S":
             t_forward, x_forward, t_reverse, x_reverse = get_jump_nature(t_matrix, x_matrix)
             t_analysis = np.cumsum(t_forward, axis=1)
             del t_forward
@@ -522,10 +538,10 @@ def sw_nucleo(
         data_result = {
 
             # --- Algorithm --- #
-            'algorithm' : algorithm,
+            'algo'      : algo,
             'fact'      : fact,
-            'factmode'  : factmode,
-            'destroy'   : destroy,
+            'mode'      : mode,
+            'dstr'      : dstr,
 
             # --- Principal Parameters --- #
             'landscape' : landscape,
@@ -537,18 +553,16 @@ def sw_nucleo(
             'alphaf'    : alphaf,
             'alphao'    : alphao,
             'beta'      : beta,
+            'rcapt'     : rcapt,
+            'rrest'     : rrest,
             'alphac'    : alphac,
             'alphad'    : alphad,
-            'rtot_capt' : rtot_capt,
-            'rtot_rest' : rtot_rest,
             'alphar'    : alphar,
-            'K'         : K,
-            'ktot'      : ktot,
-            'kB'        : kB,
-            'kU'        : kU,
+            'Ktot'      : Ktot,
+            'Kp'        : Kp,
+            'Kz'        : Kz,
             'c_linker'  : c_linker,
             'c_nucleo'  : c_nucleo,
-
 
             # --- Chromatin Parameters --- #
             'Lmin'      : Lmin,
@@ -704,9 +718,9 @@ def process_run(params: dict, formalism: dict, chromatin: dict, time: dict, meta
         time (dict): Dict with tmax, dt.
     """
     checking_inputs(
-        algorithm=formalism["algorithm"],
+        algo=formalism["algo"],
         fact=formalism["fact"],
-        factmode=formalism["factmode"], 
+        mode=formalism["mode"], 
             
         landscape=params['landscape'],
         s=params['s'],
@@ -718,11 +732,17 @@ def process_run(params: dict, formalism: dict, chromatin: dict, time: dict, meta
         alphaf=params['alphaf'],
         alphao=params['alphao'],
         beta=params['beta'],
+
+        rcapt = params["rcapt"],
+        rrest = params["rrest"],
+
         alphac=params['alphac'],
         alphad=params['alphad'],
         alphar=params['alphar'],
-        ktot=params['ktot'],
-        klist=params['klist'],
+
+        Ktot=params['Ktot'],
+        Kp=params['Kp'],
+        Kz=params['Kz'],
         
         Lmin=chromatin["Lmin"],
         Lmax=chromatin["Lmax"],
@@ -739,19 +759,18 @@ def process_run(params: dict, formalism: dict, chromatin: dict, time: dict, meta
     )
 
     sw_nucleo(
-        formalism["algorithm"], formalism["fact"], formalism["factmode"], formalism["destroy"],
-
+        formalism["algo"], formalism["fact"], formalism["mode"], formalism["dstr"],
         params["landscape"], params["s"], params["l"], params["bpmin"],
-
         params["mu"], params["theta"],
-        params["alphaf"], params["alphao"], params["beta"], 
-        params["alphac"], params["alphad"],
-        params["rtot_capt"], params["rtot_rest"],
-        params["alphar"], params["ktot"], params["klist"],
+
+        params["alphaf"], params["alphao"], params["beta"],
+        params["rcapt"], params["rrest"],
+        params["alphac"], params["alphad"], params["alphar"],
+        params["Ktot"], params["Kp"], params["Kz"],
         
         chromatin["Lmin"], chromatin["Lmax"], chromatin["bps"], chromatin["origin"],
-
         time["tmax"], time["dt"],
 
-        meta["nt"], meta["path"], meta["data_return"], meta["total_return"]
+        meta["nt"], meta["path"], 
+        meta["data_return"], meta["total_return"]
     )

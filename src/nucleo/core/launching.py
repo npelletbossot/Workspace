@@ -98,9 +98,9 @@ def generate_param_combinations(cfg: dict) -> list[dict]:
         'landscape', 's', 'l', 'bpmin',
         'mu', 'theta', 
         'alphaf', 'alphao', 'beta', 
-        'alphac', 'alphad',
-        'ktot', 'klist', 'alphar',
-        'rtot_capt', 'rtot_rest'
+        'rcapt', 'rrest',
+        'alphac', 'alphad', 'alphar',
+        'Ktot', 'Kp', 'Kz',
     ]
     
     # All combinations
@@ -108,16 +108,16 @@ def generate_param_combinations(cfg: dict) -> list[dict]:
         geometry['landscape'], geometry['s'], geometry['l'], geometry['bpmin'],
         probas['mu'], probas['theta'], 
         probas['alphaf'], probas['alphao'], probas['beta'], 
-        probas['alphac'], probas['alphad'], 
-        rates['ktot'], rates['klist'], probas['alphar'], 
-        rates['rtot_capt'], rates['rtot_rest']
+        rates['rcapt'], rates['rrest'],
+        probas['alphac'], probas['alphad'], probas['alphar'], 
+        rates['Ktot'], rates['Kp'], rates['Kz'],
     )
         
     return [
         dict(zip(keys, vals)) | {
-            "algorithm": formalism['algorithm'], 
+            "algo": formalism['algo'], 
             "fact": formalism['fact'], 
-            "factmode": formalism['factmode'], 
+            "mode": formalism['mode'], 
             "nt": meta['nt'], 
             "path": meta['path']}
         for vals in values
