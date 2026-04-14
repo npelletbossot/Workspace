@@ -25,11 +25,13 @@ from tqdm import tqdm
 
 
 PARAMS = [
-    "algorithm", "fact", "factmode", #  "destroy",
+    "algorithm", "fact", "factmode",  "destroy",
     "landscape", "s", "l", "bpmin",
     "mu", "theta",
     "alphar", "K",
-    "alphaf", "alphao", "beta", "lmbda", "alphad",
+    "alphaf", "alphao", 
+    "beta", "alphac", 
+    "alphad",
     "rtot_capt", "rtot_rest", # "ktot", "kB", "kU",
     "c_linker", "c_nucleo", "Lmin", "Lmax", "bps",
     # "origin", "tmax", "dt", "binx", "bint", "nt"
@@ -69,7 +71,7 @@ def reading_one_parquet(root: str | Path) -> pl.DataFrame:
 def finding_one_parquet(root: str, params: dict) -> pl.DataFrame:
 
     required_params = {
-        "algorithm", "fact", "factmode", # "destroy",
+        "algorithm", "fact", "factmode", "destroy",
         "landscape", "s", "l", "bpmin",
         "mu", "theta", "alphar", "K"
     }
