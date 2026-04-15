@@ -22,13 +22,6 @@ from nucleo.metrics.utils import clc_distrib
 # 2 : Functions
 # ─────────────────────────────────────────────
 
-def clc_alpha_mean(alphaf: float, alphao: float, s: int, l: int) -> float:
-    """
-    Calculate the weighted average of alpha.
-    Chromatin related.
-    """
-    return((alphaf * l + alphao * s) / (l + s))
-
 
 def find_interval_containing_value(
     intervals: list[tuple[int, int]], value: int

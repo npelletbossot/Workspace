@@ -244,21 +244,25 @@ def remodelling(
     alphar,
     Ktot, Kp, Kz, t_rest, 
 ):
+    
+    factmodes = ["passfull", "passmemo", "actifull", "actimemo"]
+    if factmode not in factmodes:
+        raise ValueError(f"You set factmode={factmode} which is not in {factmodes}")
                 
-    if factmode == "passive_full":
+    if factmode == "passfull":
         if fact_passive(Kp):
             r_capt = alphar
         
-    elif factmode == "passive_memory":
+    elif factmode == "passmemo":
         if fact_passive(Kp):
             alpha_array = remodelling_obstacle(s, alpha_array, x, pos_obs, start_obs, end_obs, alphar)
             r_capt = alpha_array[x]
 
-    elif factmode == "active_full":
+    elif factmode == "actifull":
         if fact_active(Ktot, Kp, Kz, t_rest):
             r_capt = alphar
 
-    elif factmode == "active_memory":
+    elif factmode == "actimemo":
         if fact_active(Ktot, Kp, Kz, t_rest):
             alpha_array = remodelling_obstacle(s, alpha_array, x, pos_obs, start_obs, end_obs, alphar)
             r_capt = alpha_array[x]    

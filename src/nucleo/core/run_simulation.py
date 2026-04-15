@@ -20,11 +20,11 @@ import gc
 # 1.2.1 : Simulation
 from nucleo.simulation.models import gillespie_algo_one_step, gillespie_algo_two_steps
 from nucleo.simulation.chromatin import (
+    clc_alpha_mean,
     clc_alpha_matrix,
     destroy_obstacles,
     find_blocks
 )
-from nucleo.simulation.chromatin import destroy_obstacles, find_blocks
 from nucleo.simulation.probabilities import proba_gamma
 
 # 1.2.2 : Tools
@@ -33,7 +33,6 @@ from nucleo.metrics.fitting import fitting_in_two_steps
 
 # 1.2.3 : Metrics
 from nucleo.metrics.landscape import (
-    clc_alpha_mean,
     clc_link_view, 
     clc_obs_and_link_distrib
 )
@@ -328,7 +327,10 @@ def sw_nucleo(
 
         # Chromatin Generation : Landscape
         alpha_matrix = clc_alpha_matrix(
-            landscape, s, l, bpmin, alphaf, alphao, Lmin, Lmax, bps, nt
+            landscape, s, l, bpmin, 
+            alphaf, alphao, 
+            alphar, Kp, 
+            Lmin, Lmax, bps, nt
         )
             
         # Chromatin Generation : Destroying Obstacles
@@ -403,7 +405,7 @@ def sw_nucleo(
         # Chromatin Analysis : Mean Landscape - Array / Value / Calculated
         alpha_mean_a = np.mean(alpha_matrix, axis=0)
         alpha_mean_v = np.mean(alpha_mean_a)
-        alpha_mean_c = clc_alpha_mean(alphaf, alphao, s_mean, l_mean)
+        alpha_mean_c = clc_alpha_mean(alphaf, alphao, s_mean, l_mean, alphar, Kp)
         
         # Chromatin Remodelling : Obstacles Positions
         obstacles = find_blocks(alpha_matrix[0], alphao)
@@ -428,8 +430,8 @@ def sw_nucleo(
         )
                 
         # Theoretical
-        v_mean_th = clc_th_speed(algo, alphaf, alphao, s, l, mu, alphac, rcapt, rrest)
-        v_mean_th_eff = clc_th_speed(algo, alphaf, alphao, s_mean, l_mean, mu, alphac, rcapt, rrest)
+        v_mean_th = clc_th_speed(algo, s, l, mu, alphaf, alphao, rcapt, rrest, alphac, alphar, Kp)
+        v_mean_th_eff = clc_th_speed(algo, s_mean, l_mean, mu, alphaf, alphao, rcapt, rrest, alphac, alphar, Kp)
     
     except Exception as e:
         print(f"Error in Analysis 2 - Trajectories: {e}")

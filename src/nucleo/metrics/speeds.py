@@ -13,7 +13,7 @@ Analysis functions for analyzing speed data.
 import numpy as np
 
 # 1.2 : Package
-from nucleo.metrics.landscape import clc_alpha_mean
+from nucleo.simulation.chromatin import clc_alpha_mean
 from nucleo.metrics.utils import clc_distrib
 
 
@@ -23,21 +23,25 @@ from nucleo.metrics.utils import clc_distrib
 
 
 def clc_th_speed(
-    algorithm: str,
-    alphaf: float, alphao: float, s: int, l: int, 
-    mu: float, alphac: float, rtot_capt: float, rtot_rest: float,
+    algo: str,
+    s: int, l: int,
+    mu: float,
+    alphaf: float, alphao: float, 
+    rcapt: float, rrest: float,
+    alphac: float,
+    alphar: float, Kp: float
     ) -> float:
     """
     Calculate the theoretical average speed.
     Loop Extrusion related.
     """
-    alpha_mean = clc_alpha_mean(alphaf, alphao, s, l)
+    alpha_mean = clc_alpha_mean(s, l, alphaf, alphao, alphar, Kp)
 
-    if algorithm == "one_step":
+    if algo == "one_step":
         return mu * alpha_mean
     
-    elif algorithm == "two_steps":
-        rates_mean = (1 / (rtot_capt)) + (1 / (rtot_rest))
+    elif algo == "two_steps":
+        rates_mean = (1 / (rcapt)) + (1 / (rrest))
         return mu * alphac / rates_mean * alpha_mean
 
 

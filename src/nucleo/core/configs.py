@@ -112,9 +112,9 @@ def choose_configuration(config: str) -> dict:
         "rrest": 1/6,   # Rate of resting (1/6)
         # "kB" : 0.50,        # Rate of FACT Binding
         # "kU": 0.50,         # Rate of FACT Unbinding
-        "Ktot" : 1.0,       # = kB + kU         : New formalism -> Checking that even with =1.0 it doesn't affect if non called          
-        "Kp": 1.0,          # = kB / (kB + kU)  : New formalism -> Checking that even with =1.0 it doesn't affect if non called
-        "Kz": 1.0           # = P_F(t=0)        : New formalism -> Checking that even with =1.0 it doesn't affect if non called
+        "Ktot" : 0.0,       # = kB + kU         : New formalism -> Checking that even with =1.0 it doesn't affect if non called          
+        "Kp": 0.0,          # = kB / (kB + kU)  : New formalism -> Checking that even with =1.0 it doesn't affect if non called
+        "Kz": 0.0           # = P_F(t=0)        : New formalism -> Checking that even with =1.0 it doesn't affect if non called
     }
     
     # ──────────────────────────────────

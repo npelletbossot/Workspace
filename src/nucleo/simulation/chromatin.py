@@ -79,30 +79,50 @@ def alpha_periodic(s:int, l:int, alphaf:float, alphao:float, Lmin:int, Lmax:int,
     return np.array(alpha_array, dtype=float)
 
 
-def alpha_homogeneous(
-    s: int, l: int, alphaf: float, alphao: float, 
-    Lmin: int, Lmax: int, bps: int
-) -> np.ndarray:
-    """Generates one flat pattern
+def clc_alpha_mean(
+    s: int, l: int, alphaf: float, alphao: float,
+    alphar: float, Kp: float,
+) -> float:
+    """Computes the mean acceptance probability for a homogeneous landscape.
 
     Args:
-        s (int): Value of s, nucleosome size.
-        l (int): Value of l, linker length.
-        alphao (float): Probability of beeing accepted on nucleosome sites.
-        alphaf (float): Probability of beeing accepted on linker sites.
-        Lmin (int): First point of chromatin.
-        Lmax (int): Last point of chromatin.
+        s (int): Nucleosome size (in sites).
+        l (int): Linker length (in sites).
+        alphaf (float): Acceptance probability on linker sites.
+        alphao (float): Acceptance probability on nucleosome sites (off state).
+        alphar (float): Acceptance probability on nucleosome sites (on state).
+        Kp (float): Fraction of time nucleosome is in 'on' (remodeled) state.
+
+    Returns:
+        float: Weighted mean alpha value over one nucleosome + linker unit.
+    """
+    return (l * alphaf + s * (Kp * alphar + (1 - Kp) * alphao)) / (l + s)
+
+
+def alpha_homogeneous(
+    s: int, l: int, alphaf: float, alphao: float,
+    alphar: float, Kp: float,
+    Lmin: int, Lmax: int, bps: int,
+) -> np.ndarray:
+    """Generates a uniform alpha landscape over the chromatin region.
+
+    Args:
+        s (int): Nucleosome size (in sites).
+        l (int): Linker length (in sites).
+        alphaf (float): Acceptance probability on linker sites.
+        alphao (float): Acceptance probability on nucleosome sites (off state).
+        alphar (float): Acceptance probability on nucleosome sites (on state).
+        Kp (float): Fraction of time nucleosome is in 'on' (remodeled) state.
+        Lmin (int): First site of chromatin.
+        Lmax (int): Last site of chromatin.
         bps (int): Number of base pairs per site.
 
     Returns:
-        np.ndarray: Landscape corresponding to one trajectory.
+        np.ndarray: Uniform alpha landscape for one trajectory.
     """
-
-    value = (alphao * s + alphaf * l) / (l + s)   
+    value = clc_alpha_mean(s, l, alphaf, alphao, alphar, Kp)
     size = int((Lmax - Lmin) / bps)
-    alpha_array = np.full(size, value)
-
-    return np.array(alpha_array, dtype=float)
+    return np.full(size, value)
 
 
 # 2.2 Generation
@@ -111,6 +131,7 @@ def alpha_homogeneous(
 def clc_alpha_matrix(
     landscape: str, s: int, l: int, bpmin: int, 
     alphaf: float, alphao: float, 
+    alphar: float, Kp: float,
     Lmin: int, Lmax: int, bps: int, nt: int
 ) -> np.ndarray:
     """
@@ -149,7 +170,7 @@ def clc_alpha_matrix(
         alpha_matrix = np.tile(alpha_array, (nt,1))
     
     elif landscape == 'homogen' :
-        alpha_array = alpha_homogeneous(s, l, alphaf, alphao, Lmin, Lmax, bps)
+        alpha_array = alpha_homogeneous(s, l, alphaf, alphao, alphar, Kp, Lmin, Lmax, bps)
         alpha_matrix = np.tile(alpha_array, (nt,1))
 
     elif landscape == 'random':

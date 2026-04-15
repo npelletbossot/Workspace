@@ -302,7 +302,7 @@ def gillespie_algo_one_step(
 
 def gillespie_algo_two_steps(
     fact: bool,
-    factmode: str,
+    mode: str,
     alpha_matrix: np.ndarray,
     p: np.ndarray,
     s: int,
@@ -493,7 +493,7 @@ def gillespie_algo_two_steps(
             # --- FACT : Remodelling --- #
             if (fact) & (not homogeneous) & (np.isclose(r_capt, alphao)):       
                 r_capt, alpha_array = remodelling(
-                    factmode,
+                    mode,
                     alpha_array, s,
                     x, r_capt,
                     pos_obs, start_obs, end_obs,
