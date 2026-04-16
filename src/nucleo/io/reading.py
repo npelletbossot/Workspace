@@ -32,9 +32,7 @@ PARAMS = [
     "alphaf", "alphao", 
     "beta", "alphac", 
     "alphad",
-    "rtot_capt", "rtot_rest", # "ktot", "kB", "kU",
-    "c_linker", "c_nucleo", "Lmin", "Lmax", "bps",
-    # "origin", "tmax", "dt", "binx", "bint", "nt"
+    "rtot_capt", "rtot_rest"
 ]
 
 
