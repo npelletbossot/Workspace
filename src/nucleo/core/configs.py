@@ -230,8 +230,8 @@ def choose_configuration(config: str) -> dict:
             "rcapt": np.array([RATES["rcapt"]], dtype=float),
             "rrest": np.array([RATES["rrest"]], dtype=float),
             "Ktot": np.array([RATES["Ktot"]], dtype=float),
-            "Kp": np.arange(0.0, 1.0 + 0.10, 0.10, dtype=float),
-            "Kz": np.arange(0.0, 1.0 + 0.10, 0.10, dtype=float),
+            "Kp":  np.array([RATES["Kp"]], dtype=float),
+            "Kz":  np.array([RATES["Kz"]], dtype=float),
         },
         "meta": {
             "nt": 100,

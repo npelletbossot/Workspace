@@ -435,18 +435,18 @@ def gillespie_algo_two_steps(
     t_matrix = np.empty(nt, dtype=object)
     x_matrix = np.empty(nt, dtype=object)
     
-    # --- FACT Conditions for Homogeneous Landscapes --- #
+    # --- FACT Conditions for Homogen Landscapes --- #
     if np.all(alpha_matrix == alpha_matrix[0, 0]):
-        homogeneous = True
+        homogen = True
     else :
-        homogeneous = False
+        homogen = False
         
     # --- Loop Over Trajectories --- #
     for n in range(0,nt) :
         
         # Landscape and Obstacles
         alpha_array = alpha_matrix[n]
-        if not homogeneous:
+        if not homogen:
             pos_obs     = find_blocks(alpha_array, alphao)
             start_obs   = pos_obs[:, 0]
             end_obs     = pos_obs[:, 1]
@@ -491,7 +491,7 @@ def gillespie_algo_two_steps(
                 break
             
             # --- FACT : Remodelling --- #
-            if (fact) & (not homogeneous) & (np.isclose(r_capt, alphao)):       
+            if (fact) & (not homogen) & (np.isclose(r_capt, alphao)):       
                 r_capt, alpha_array = remodelling(
                     mode,
                     alpha_array, s,

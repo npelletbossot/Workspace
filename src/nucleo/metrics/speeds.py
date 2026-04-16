@@ -35,12 +35,16 @@ def clc_th_speed(
     Calculate the theoretical average speed.
     Loop Extrusion related.
     """
+    algos = ["1S", "2S"]
+    if algo not in algos:
+        raise ValueError(f"You set algo={algo} while it must be in {algos}")
+    
     alpha_mean = clc_alpha_mean(s, l, alphaf, alphao, alphar, Kp)
 
-    if algo == "one_step":
+    if algo == "1S":
         return mu * alpha_mean
     
-    elif algo == "two_steps":
+    elif algo == "2S":
         rates_mean = (1 / (rcapt)) + (1 / (rrest))
         return mu * alphac / rates_mean * alpha_mean
 

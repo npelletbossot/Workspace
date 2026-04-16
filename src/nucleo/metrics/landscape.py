@@ -92,7 +92,7 @@ def clc_link_view(
     Raises
     ------
     ValueError
-        If 'homogeneous' linker does not really exist. 
+        If '["1S", "2S"]' linker does not really exist. 
         If `threshold` is larger than half of Lmax.
         If `view_size` is larger than 10,000.
         If `data` contains only one trajectory or is not a matrix.
@@ -106,8 +106,13 @@ def clc_link_view(
     - Averages are computed first for each trajectory, then globally across all.
     """
 
+    # First conditions
+    landscapes = ["random", "periodic", "homogen"]
+    if landscape not in landscapes:
+        raise ValueError(f"You set landscape={landscape} which is not in {landscapes}")
+
     # Conditions on inputs
-    if landscape == "homogeneous":
+    if landscape == "homogen":
         view_mean = np.array(alpha_matrix[0][threshold:threshold+view_size], dtype=float)
         return view_mean
     if threshold > Lmax // 2:
@@ -156,7 +161,7 @@ def clc_link_view(
 
 
 def clc_obs_and_link_distrib(
-    alpha_scenario: str, s: int, l: int,
+    landscape: str, s: int, l: int,
     alpha_array: np.ndarray, alphaf: float, alphao: float,
     step: int
 ) -> tuple[float, np.ndarray, np.ndarray, float, np.ndarray, np.ndarray]:
@@ -177,9 +182,14 @@ def clc_obs_and_link_distrib(
             - points_l (np.ndarray): Centers of bins for linker lengths.
             - distrib_l (np.ndarray): Normalized distribution of linker lengths.
     """
+
+    # First conditions
+    landscapes = ["random", "periodic", "homogen"]
+    if landscape not in landscapes:
+        raise ValueError(f"You set landscape={landscape} which is not in {landscapes}")
     
     # Concerning flat landscape
-    if alpha_scenario == "homogeneous":
+    if landscape == "homogen":
         return (
             np.float64(s), np.array([0.0]), np.array([0.0]), 
             np.float64(l), np.array([0.0]), np.array([0.0])

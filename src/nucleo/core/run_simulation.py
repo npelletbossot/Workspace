@@ -91,7 +91,7 @@ def checking_inputs(
     ----------
     landscape : str
         Chromatin landscape model. Must be one of:
-        {"homogeneous", "periodic", "random"}.
+        {"homogen", "periodic", "random"}.
     s : np.integer
         Nucleosome size (must be >= 0).
     l : np.integer
@@ -158,7 +158,7 @@ def checking_inputs(
 
         # Obstacles
         if landscape not in {"homogen", "periodic", "random"}:
-            raise ValueError(f"Invalid landscape: {landscape}. Must be 'homogeneous', 'periodic', or 'random'.")
+            raise ValueError(f"Invalid landscape: {landscape}. Must be 'homogen', 'periodic', or 'random'.")
         for name, value in [("s", s), ("l", l), ("bpmin", bpmin)]:
             if not isinstance(value, np.integer) or value < 0:
                 raise ValueError(f"Invalid value for {name}: must be an int >= 0. Got {value}.")
@@ -186,9 +186,9 @@ def checking_inputs(
                 )
     
         # --- Ktot (kB + kU) ---
-        if Ktot <= 0:
+        if Ktot < 0:
             raise ValueError(
-                f"Invalid Ktot={Ktot}: must be a float strictly > 0."
+                f"Invalid Ktot={Ktot}: must be a float > or = to 0."
             )
         # --- Kp and Kz (probabilities) ---
         kcheck = np.asarray([Kp, Kz])

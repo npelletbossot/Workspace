@@ -127,11 +127,15 @@ def fact_active(Ktot: float, Kp: float, Kz: float, t_rest: float) -> bool:
     bool
         True if chromatin remodelling occurs, False otherwise.
     """
-    r_fact = np.random.rand()
-    k_rel = 1 / Ktot
-    exp_term = np.exp(-k_rel * t_rest)
-    PF = Kz * exp_term + Kp * (1 - exp_term)
-    return r_fact < PF
+
+    if Ktot == 0.0 or t_rest == 0.0:
+        PF = Kz
+    else:
+        k_rel    = 1.0 / Ktot
+        exp_term = np.exp(-k_rel * t_rest)
+        PF       = Kz * exp_term + Kp * (1.0 - exp_term)
+
+    return np.random.rand() < PF
 
 
 # def fact_pheno(kB: float, kU: float, K: float, t_rest: float) -> bool:

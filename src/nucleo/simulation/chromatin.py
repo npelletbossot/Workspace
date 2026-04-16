@@ -83,7 +83,7 @@ def clc_alpha_mean(
     s: int, l: int, alphaf: float, alphao: float,
     alphar: float, Kp: float,
 ) -> float:
-    """Computes the mean acceptance probability for a homogeneous landscape.
+    """Computes the mean acceptance probability for a homogen landscape.
 
     Args:
         s (int): Nucleosome size (in sites).
@@ -99,7 +99,7 @@ def clc_alpha_mean(
     return (l * alphaf + s * (Kp * alphar + (1 - Kp) * alphao)) / (l + s)
 
 
-def alpha_homogeneous(
+def alpha_homogen(
     s: int, l: int, alphaf: float, alphao: float,
     alphar: float, Kp: float,
     Lmin: int, Lmax: int, bps: int,
@@ -138,7 +138,7 @@ def clc_alpha_matrix(
     Calculation of the matrix of obstacles, each line corresponding to a trajectory
 
     Args:
-        landscape (str): Choice of the alpha configuration ('random', 'periodic', 'homogeneous').
+        landscape (str): Choice of the alpha configuration ('random', 'periodic', 'homogen').
         s (int): Value of s, nucleosome size.
         l (int): Value of l, linker length.
         bpmin (int): Minimum base pair threshold.
@@ -170,7 +170,7 @@ def clc_alpha_matrix(
         alpha_matrix = np.tile(alpha_array, (nt,1))
     
     elif landscape == 'homogen' :
-        alpha_array = alpha_homogeneous(s, l, alphaf, alphao, alphar, Kp, Lmin, Lmax, bps)
+        alpha_array = alpha_homogen(s, l, alphaf, alphao, alphar, Kp, Lmin, Lmax, bps)
         alpha_matrix = np.tile(alpha_array, (nt,1))
 
     elif landscape == 'random':
