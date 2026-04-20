@@ -67,7 +67,7 @@ from nucleo.io.writing import inspect_data_types, writing_parquet
 
 def checking_inputs(
     algo, fact, mode,
-    landscape, s, l, bpmin, 
+    land, s, l, bpmin, 
     mu, theta, 
     alphaf, alphao, beta,
     rcapt, rrest,
@@ -89,7 +89,7 @@ def checking_inputs(
 
     Parameters
     ----------
-    landscape : str
+    land : str
         Chromatin landscape model. Must be one of:
         {"homogen", "periodic", "random"}.
     s : np.integer
@@ -157,8 +157,8 @@ def checking_inputs(
             raise ValueError(f"You set factmode={mode} for remodelling which is not a valid mode")  
 
         # Obstacles
-        if landscape not in {"homogen", "periodic", "random"}:
-            raise ValueError(f"Invalid landscape: {landscape}. Must be 'homogen', 'periodic', or 'random'.")
+        if land not in {"homogen", "periodic", "random"}:
+            raise ValueError(f"Invalid land: {land}. Must be 'homogen', 'periodic', or 'random'.")
         for name, value in [("s", s), ("l", l), ("bpmin", bpmin)]:
             if not isinstance(value, np.integer) or value < 0:
                 raise ValueError(f"Invalid value for {name}: must be an int >= 0. Got {value}.")
@@ -239,7 +239,7 @@ def checking_inputs(
 
 def sw_nucleo(
     algo: str, fact: str, mode: str, dstr: bool,
-    landscape: str, s: int, l: int, bpmin: int,
+    land: str, s: int, l: int, bpmin: int,
     mu: float, theta: float, 
     alphaf: float, alphao: float, beta: float, 
     rcapt: float, rrest: float,
@@ -254,7 +254,7 @@ def sw_nucleo(
     Simulates condensin dynamics along chromatin with specified parameters.
 
     Args:
-        landscape (str): Choice of the alpha configuration ('ntrandom', 'periodic', 'constantmean').
+        land (str): Choice of the alpha configuration ('ntrandom', 'periodic', 'constantmean').
         s (int): Nucleosome size.
         l (int): Linker length.
         bpmin (int): Minimum base pair threshold.
@@ -293,7 +293,7 @@ def sw_nucleo(
     # Title & Folder    
     title = (
             f"algo={algo}__fact={fact}__mode={mode}__dstr={dstr}__"
-            f"land={landscape}__s={s}__l={l}__bpmin={bpmin}__"
+            f"land={land}__s={s}__l={l}__bpmin={bpmin}__"
             f"mu={mu}__theta={theta}__"
             f"rcapt={rcapt:.1e}__rrest={rrest:.1e}__"
             f"alphac={alphac:.1e}__alphad={alphad:.1e}__alphar={alphar:.1e}__"
@@ -327,7 +327,7 @@ def sw_nucleo(
 
         # Chromatin Generation : Landscape
         alpha_matrix = clc_alpha_matrix(
-            landscape, s, l, bpmin, 
+            land, s, l, bpmin, 
             alphaf, alphao, 
             alphar, Kp, 
             Lmin, Lmax, bps, nt
@@ -394,12 +394,12 @@ def sw_nucleo(
         
     # Chromatin Analysis : Obstacles Linkers Distribution
         s_mean, s_points, s_distrib, l_mean, l_points, l_distrib = clc_obs_and_link_distrib(
-            landscape, s, l, alpha_matrix[0], alphaf, alphao, binx
+            land, s, l, alpha_matrix[0], alphaf, alphao, binx
         )
 
         # Chromatin Analysis : Linker Profile
         l_view = clc_link_view(
-            alpha_matrix, landscape, alphaf, Lmin, Lmax, nt
+            alpha_matrix, land, alphaf, Lmin, Lmax, nt
         )
         
         # Chromatin Analysis : Mean Landscape - Array / Value / Calculated
@@ -546,7 +546,7 @@ def sw_nucleo(
             'dstr'      : dstr,
 
             # --- Principal Parameters --- #
-            'landscape' : landscape,
+            'land'      : land,
             's'         : s,
             'l'         : l,
             'bpmin'     : bpmin,
@@ -724,7 +724,7 @@ def process_run(params: dict, formalism: dict, chromatin: dict, time: dict, meta
         fact=formalism["fact"],
         mode=formalism["mode"], 
             
-        landscape=params['landscape'],
+        land=params['land'],
         s=params['s'],
         l=params['l'],
         bpmin=params['bpmin'],
@@ -762,7 +762,7 @@ def process_run(params: dict, formalism: dict, chromatin: dict, time: dict, meta
 
     sw_nucleo(
         formalism["algo"], formalism["fact"], formalism["mode"], formalism["dstr"],
-        params["landscape"], params["s"], params["l"], params["bpmin"],
+        params["land"], params["s"], params["l"], params["bpmin"],
         params["mu"], params["theta"],
 
         params["alphaf"], params["alphao"], params["beta"],

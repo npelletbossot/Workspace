@@ -25,14 +25,14 @@ from tqdm import tqdm
 
 
 PARAMS = [
-    "algorithm", "fact", "factmode",  "destroy",
+    "algo", "fact", "mode",  "dstr",
     "landscape", "s", "l", "bpmin",
     "mu", "theta",
-    "alphar", "K",
+    "alphar", "Kp", "Kz",
     "alphaf", "alphao", 
     "beta", "alphac", 
     "alphad",
-    "rtot_capt", "rtot_rest"
+    "rcapt", "rrest"
 ]
 
 
@@ -68,10 +68,16 @@ def reading_one_parquet(root: str | Path) -> pl.DataFrame:
 
 def finding_one_parquet(root: str, params: dict) -> pl.DataFrame:
 
+    COLUMN_ALIASES = {
+        "land"      : "landscape",
+    }
+
+    params = {COLUMN_ALIASES.get(k, k): v for k, v in params.items()}
+
     required_params = {
-        "algorithm", "fact", "factmode", "destroy",
+        "algo", "fact", "mode", "dstr",
         "landscape", "s", "l", "bpmin",
-        "mu", "theta", "alphar", "K"
+        "mu", "theta", "alphar", "Kp", "Kz"
     }
     missing = required_params - params.keys()
     if missing:
@@ -86,7 +92,7 @@ def finding_one_parquet(root: str, params: dict) -> pl.DataFrame:
     if not paths:
         raise FileNotFoundError("No parquet files found.")
 
-    FLOAT_COLS = {"alphar", "K", "mu", "theta", "s", "l", "bpmin"}
+    FLOAT_COLS = {"alphar", "Kp", "Kz"}
     EPS = 1e-6
 
     def make_filter(k, v):
