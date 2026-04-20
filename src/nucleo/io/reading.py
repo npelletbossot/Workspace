@@ -66,54 +66,114 @@ def reading_one_parquet(root: str | Path) -> pl.DataFrame:
     return pl.read_parquet(Path(root))
 
 
+# def finding_one_parquet(root: str, params: dict) -> pl.DataFrame:
+
+#     COLUMN_ALIASES = {
+#         "land"      : "landscape",
+#     }
+
+#     params = {COLUMN_ALIASES.get(k, k): v for k, v in params.items()}
+
+#     required_params = {
+#         "algo", "fact", "mode", "dstr",
+#         "landscape", "s", "l", "bpmin",
+#         "mu", "theta", "alphar", "Kp", "Kz"
+#     }
+#     missing = required_params - params.keys()
+#     if missing:
+#         raise ValueError(f"Missing parameters: {missing}")
+
+#     root = Path(root)
+#     paths = [
+#         str(p) for p in root.glob("**/*.parquet")
+#         if p.name not in {"ncl_output.parquet", "merged.parquet"}
+#     ]
+#     df_check = pl.scan_parquet(paths[0]).collect()
+#     print(df_check.columns)
+
+#     if not paths:
+#         raise FileNotFoundError("No parquet files found.")
+
+#     FLOAT_COLS = {"alphar", "Kp", "Kz"}
+#     EPS = 1e-6
+
+#     def make_filter(k, v):
+#         if k in FLOAT_COLS:
+#             return pl.col(k).is_between(v - EPS, v + EPS)
+#         return pl.col(k) == v
+    
+#     print(f"Scanning {len(paths)} parquet files...")
+
+#     df = (
+#         pl.scan_parquet(paths, include_file_paths="source_file")
+#         .filter(pl.all_horizontal([make_filter(k, v) for k, v in params.items()]))
+#         .collect()
+#     )
+
+#     if df.height == 0:
+#         raise ValueError("No dataframe found with the given parameters.")
+#     else:
+#         print(f"Found in : {df['source_file'].unique().to_list()}")
+#         df = df.drop("source_file")
+#     return df
+
+
 def finding_one_parquet(root: str, params: dict) -> pl.DataFrame:
-
-    COLUMN_ALIASES = {
-        "land"      : "landscape",
-    }
-
-    params = {COLUMN_ALIASES.get(k, k): v for k, v in params.items()}
-
-    required_params = {
-        "algo", "fact", "mode", "dstr",
-        "landscape", "s", "l", "bpmin",
-        "mu", "theta", "alphar", "Kp", "Kz"
-    }
-    missing = required_params - params.keys()
-    if missing:
-        raise ValueError(f"Missing parameters: {missing}")
-
     root = Path(root)
     paths = [
         str(p) for p in root.glob("**/*.parquet")
         if p.name not in {"ncl_output.parquet", "merged.parquet"}
     ]
-
     if not paths:
         raise FileNotFoundError("No parquet files found.")
 
-    FLOAT_COLS = {"alphar", "Kp", "Kz"}
+    # Détection de la convention de nommage
+    actual_cols = set(pl.scan_parquet(paths[0]).columns)
+
+    # Tables de traduction dans les deux sens
+    ALIASES = {
+        "land"      : "landscape",
+        "algo"      : "algorithm",
+        "mode"      : "factmode",
+        "dstr"      : "destroy",
+    }
+    ALIASES_INV = {v: k for k, v in ALIASES.items()}
+
+    # Adapter les params aux colonnes réelles
+    adapted = {}
+    for k, v in params.items():
+        if k in actual_cols:
+            # La clé existe telle quelle → on la garde
+            adapted[k] = v
+        elif k in ALIASES and ALIASES[k] in actual_cols:
+            # Traduction directe (ex: "land" → "landscape" si "landscape" existe)
+            adapted[ALIASES[k]] = v
+        elif k in ALIASES_INV and ALIASES_INV[k] in actual_cols:
+            # Traduction inverse (ex: "landscape" → "land" si "land" existe)
+            adapted[ALIASES_INV[k]] = v
+        else:
+            print(f"⚠️  '{k}' introuvable, ignorée.")
+
+    FLOAT_COLS = {"alphar", "Kp", "Kz", "K", "alphad"}
     EPS = 1e-6
 
     def make_filter(k, v):
         if k in FLOAT_COLS:
             return pl.col(k).is_between(v - EPS, v + EPS)
         return pl.col(k) == v
-    
-    print(f"Scanning {len(paths)} parquet files...")
 
+    print(f"Scanning {len(paths)} parquet files...")
     df = (
         pl.scan_parquet(paths, include_file_paths="source_file")
-        .filter(pl.all_horizontal([make_filter(k, v) for k, v in params.items()]))
+        .filter(pl.all_horizontal([make_filter(k, v) for k, v in adapted.items()]))
         .collect()
     )
 
     if df.height == 0:
-        raise ValueError("No dataframe found with the given parameters.")
-    else:
-        print(f"Found in : {df['source_file'].unique().to_list()}")
-        df = df.drop("source_file")
-    return df
+        raise ValueError(f"No dataframe found. Adapted params: {adapted}")
+    
+    print(f"Found in : {df['source_file'].unique().to_list()}")
+    return df.drop("source_file")
 
 
 def _scalar_column_names(schema: pl.Schema) -> list[str]:
