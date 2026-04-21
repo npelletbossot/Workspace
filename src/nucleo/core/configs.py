@@ -179,7 +179,7 @@ def choose_configuration(config: str) -> dict:
     TWOSTEPS__BASE = {
         "formalism": {**FORMALISMS['alg2']},
         "geometry": {
-            "landscape": np.array(['homogen', 'periodic', 'random']),
+            "land": np.array(['homogen', 'periodic', 'random']),
             "s": np.array([35], dtype=int),
             "l": np.array([10, 35, 100], dtype=int),
             "bpmin": np.array([0], dtype=int)
@@ -211,7 +211,7 @@ def choose_configuration(config: str) -> dict:
     TEST__BASE = {
         "formalism": {**FORMALISMS['alg2_active_memory']},
         "geometry": {
-            "landscape": np.array(['homogen', 'periodic', 'random']),
+            "land": np.array(['homogen', 'periodic', 'random']),
             "s": np.array([35], dtype=int),
             "l": np.array([10], dtype=int),
             "bpmin": np.array([0], dtype=int)
@@ -251,7 +251,7 @@ def choose_configuration(config: str) -> dict:
         "NU": {
             **ONESTEP__BASE,
             "geometry": {
-                "landscape": np.array(['homogen', 'periodic', 'random']),
+                "land": np.array(['homogen', 'periodic', 'random']),
                 "s": np.array([150], dtype=int),
                 "l": np.array([10], dtype=int),
                 "bpmin": np.array([0], dtype=int)
@@ -265,7 +265,7 @@ def choose_configuration(config: str) -> dict:
         "BP": {
             **ONESTEP__BASE,
             "geometry": {
-                "landscape": np.array(['random']),
+                "land": np.array(['random']),
                 "s": np.array([150], dtype=int),
                 "l": np.array([10], dtype=int),
                 "bpmin": np.array([5, 10, 15], dtype=int)
@@ -279,7 +279,7 @@ def choose_configuration(config: str) -> dict:
         "LSLOW": {
             **ONESTEP__BASE,
             "geometry": {
-                "landscape": np.array(['random']),
+                "land": np.array(['random']),
                 "s": np.array([150], dtype=int),
                 "l": np.array([5, 15, 20, 25], dtype=int),
                 "bpmin": np.array([0], dtype=int)
@@ -293,7 +293,7 @@ def choose_configuration(config: str) -> dict:
         "LSHIGH": {
             **ONESTEP__BASE,
             "geometry": {
-                "landscape": np.array(['random']),
+                "land": np.array(['random']),
                 "s": np.array([150], dtype=int),
                 "l": np.array([50, 100, 150], dtype=int),
                 "bpmin": np.array([0], dtype=int)
@@ -310,7 +310,7 @@ def choose_configuration(config: str) -> dict:
             **COMPACTION_BASE,
             "geometry": {
                 **COMPACTION_BASE["geometry"],
-                "landscape": np.array(["random"]),
+                "land": np.array(["random"]),
                 "l" : np.arange(10, 450 + 10, 10, dtype=int),
                 "bpmin": np.arange(0, 20 + 5, 5, dtype=int),
             },
@@ -328,7 +328,7 @@ def choose_configuration(config: str) -> dict:
             **COMPACTION_BASE,
             "geometry": {
                 **COMPACTION_BASE["geometry"],
-                "landscape": np.array(["periodic"]),
+                "land": np.array(["periodic"]),
                 "l" : np.arange(10, 200 + 10, 10, dtype=int),
                 "bpmin": np.array([0], dtype=int),
             },
@@ -347,7 +347,7 @@ def choose_configuration(config: str) -> dict:
         "RYU": {
             **TWOSTEPS__BASE,
             "geometry": {
-                "landscape": np.array(['homogen', 'periodic', 'random']),
+                "land": np.array(['homogen', 'periodic', 'random']),
                 "s": np.array([150], dtype=int),
                 "l": np.array([10], dtype=int),
                 "bpmin": np.array([0], dtype=int)
@@ -411,7 +411,7 @@ def choose_configuration(config: str) -> dict:
         "FIGURE_1": {
             **ONESTEP__BASE,
             "geometry": {
-                "landscape": np.array(['random']),
+                "land": np.array(['random']),
                 "s": np.array([150], dtype=int),
                 "l": np.array([10], dtype=int),
                 "bpmin": np.array([0], dtype=int)
@@ -431,7 +431,7 @@ def choose_configuration(config: str) -> dict:
         "FIGURE_2": {
             **ONESTEP__BASE,
             "geometry": {
-                "landscape": np.array(['homogen']),
+                "land": np.array(['homogen']),
                 "s": np.array([150], dtype=int),
                 "l": np.array([10], dtype=int),
                 "bpmin": np.array([0], dtype=int)
@@ -451,7 +451,7 @@ def choose_configuration(config: str) -> dict:
         "FIGURE_3": {
             **ONESTEP__BASE,
             "geometry": {
-                "landscape": np.array(['homogen']),
+                "land": np.array(['homogen']),
                 "s": np.array([150], dtype=int),
                 "l": np.array([10], dtype=int),
                 "bpmin": np.array([0], dtype=int)
