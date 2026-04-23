@@ -131,7 +131,7 @@ def clc_compaction_landscape(alpha_matrix: np.ndarray) -> np.ndarray:
     return np.cumsum(alpha_matrix, axis=1)
 
 
-def clc_compaction_speeds(
+def clc_compaction_positions(
     alpha_matrix_c: np.ndarray,
     t_matrix: np.ndarray,
     x_matrix: np.ndarray,
@@ -153,31 +153,26 @@ def clc_compaction_speeds(
 
             xi = int(x_matrix[i, j])
             xf = int(xf_float)
-            dt = t_matrix[i, j + 1] - t_matrix[i, j]
-            if dt <= 0:
-                continue
 
             delta_x  = xf - xi
             sum_alpha = alpha_matrix_c[i, xf] - alpha_matrix_c[i, xi]
-
             delta_bp = c_nucleo * delta_x + (c_linker - c_nucleo) * sum_alpha
-            vc_array[i, j] = delta_bp / dt
 
-    return vc_array
+    return delta_bp
 
 
-def clc_compaction_statistics(
-        alpha_matrix: np.ndarray, t_matrix: np.ndarray, x_matrix: np.ndarray,
-        c_linker: float, c_nucleo: float
-    ):
+# def clc_compaction_statistics(
+#         alpha_matrix: np.ndarray, t_matrix: np.ndarray, x_matrix: np.ndarray,
+#         c_linker: float, c_nucleo: float
+#     ):
 
-    alpha_matrix_c = clc_compaction_landscape(alpha_matrix)
-    vc_array = clc_compaction_speeds(alpha_matrix_c, t_matrix, x_matrix, c_linker, c_nucleo)
+#     alpha_matrix_c = clc_compaction_landscape(alpha_matrix)
+#     vc_array = clc_compaction_speeds(alpha_matrix_c, t_matrix, x_matrix, c_linker, c_nucleo)
 
-    vc_mean = np.nanmean(vc_array)
-    vc_med  = np.nanmedian(vc_array)
+#     vc_mean = np.nanmean(vc_array)
+#     vc_med  = np.nanmedian(vc_array)
 
-    vc_points, vc_distrib = clc_distrib(data=vc_array, first_bin=0, last_bin=1000, bin_width=1)
-    vc_mp   = vc_points[np.where(vc_distrib == np.max(vc_distrib))]
+#     vc_points, vc_distrib = clc_distrib(data=vc_array, first_bin=0, last_bin=1000, bin_width=1)
+#     vc_mp   = vc_points[np.where(vc_distrib == np.max(vc_distrib))]
 
-    return vc_points, vc_distrib, vc_mean, vc_med, vc_mp
+#     return vc_points, vc_distrib, vc_mean, vc_med, vc_mp

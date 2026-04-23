@@ -21,10 +21,15 @@ from nucleo.metrics.fitting import linear_fit
 # ─────────────────────────────────────────────
 
 
-# 2.1 Sites
+# 2.1 Reconsituting Trajectories
 
 
-def clc_site_results(results: np.ndarray, dt: float, alpha_0: float, lb: int) -> tuple:
+
+
+# 2.2 Sites / Base Pairs
+
+
+def clc_results(results: np.ndarray, dt: float, alpha_0: float, lb: int) -> tuple:
     """
     Calculate main statistics and derived results for a matrix of trajectories.
 
@@ -59,4 +64,3 @@ def clc_site_results(results: np.ndarray, dt: float, alpha_0: float, lb: int) ->
     v_med = linear_fit(med_results[lb:], dt, offset=lb) * alpha_0      # Calculate the velocity for the median trajectory
 
     return mean_results, med_results, std_results, v_mean, v_med
-

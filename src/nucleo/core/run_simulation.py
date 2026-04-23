@@ -36,7 +36,7 @@ from nucleo.metrics.landscape import (
     clc_link_view, 
     clc_obs_and_link_distrib
 )
-from nucleo.metrics.trajectories import clc_site_results
+from nucleo.metrics.trajectories import clc_results
 
 from nucleo.metrics.jumps import (
     clc_pos_hist,
@@ -49,7 +49,7 @@ from nucleo.metrics.speeds import (
     clc_inst_speeds
 )
 
-from nucleo.metrics.compaction import clc_compaction_statistics
+from nucleo.metrics.compaction import clc_compaction_positions
 
 from nucleo.metrics.twosteps import get_jump_nature
 
@@ -420,7 +420,7 @@ def sw_nucleo(
     try:
 
         # Main Results
-        results_mean, results_med, results_std, v_mean, v_med = clc_site_results(
+        results_mean, results_med, results_std, v_mean, v_med = clc_results(
             results, dt, alpha0, lb=20
         )
         
@@ -490,6 +490,7 @@ def sw_nucleo(
             t_analysis, x_analysis
         )            
         
+        x_matrix_c = clc_compaction_positions()
         # Instantaneous Speeds [Base Pairs][vb_*]
         vc_points, vc_distrib, vc_mean, vc_med, vc_mp = clc_compaction_statistics(
             alpha_matrix, t_matrix, x_matrix, c_linker, c_nucleo
