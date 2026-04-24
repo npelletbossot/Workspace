@@ -36,7 +36,10 @@ from nucleo.metrics.landscape import (
     clc_link_view, 
     clc_obs_and_link_distrib
 )
-from nucleo.metrics.trajectories import clc_results
+from nucleo.metrics.trajectories import (
+    reconstitute_mean_trajectory,
+    clc_results
+)
 
 from nucleo.metrics.jumps import (
     clc_pos_hist,
@@ -49,7 +52,7 @@ from nucleo.metrics.speeds import (
     clc_inst_speeds
 )
 
-from nucleo.metrics.compaction import clc_compaction_positions
+from nucleo.metrics.compaction import clc_compaction_deltas
 
 from nucleo.metrics.twosteps import get_jump_nature
 
@@ -319,6 +322,7 @@ def sw_nucleo(
     t_bins = np.arange(t_fb, t_lb, t_bw)
     binx = int(1e0)
     bint = int(1e+1)
+    lb = int(20)
 
 
     # ------------------- Input 1 : Chromatin ------------------- #
@@ -419,19 +423,19 @@ def sw_nucleo(
     
     try:
 
-        # Main Results
-        results_mean, results_med, results_std, v_mean, v_med = clc_results(
-            results, dt, alpha0, lb=20
-        )
-        
-        # Fits
-        vf, Cf, wf, vf_std, Cf_std, wf_std, xt_over_t, G, bound_low, bound_high = fitting_in_two_steps(
-            times, results_mean, results_std
-        )
-                
         # Theoretical
         v_mean_th = clc_th_speed(algo, s, l, mu, alphaf, alphao, rcapt, rrest, alphac, alphar, Kp)
         v_mean_th_eff = clc_th_speed(algo, s_mean, l_mean, mu, alphaf, alphao, rcapt, rrest, alphac, alphar, Kp)
+
+        # Site Statistics [Sites][v_*]
+        results_mean, results_med, results_std, v_mean, v_med = clc_results(
+            results, dt, alpha0, lb=lb
+        )
+        
+        # Fits [Sites][v_*]
+        vf, Cf, wf, vf_std, Cf_std, wf_std, xt_over_t, G, bound_low, bound_high = fitting_in_two_steps(
+            times, results_mean, results_std
+        )
     
     except Exception as e:
         print(f"Error in Analysis 2 - Trajectories: {e}")
@@ -467,34 +471,47 @@ def sw_nucleo(
     
     try:
         
-        # All Jumps
+        # ------- Filtering the events
+
+        # All Jumps for Gillespie One Step
         if algo == "1S":
             pass
             t_analysis = t_matrix   # Does not use memory
             x_analysis = x_matrix   # Does not use memory
         
-        # Forward Jumps
+        # Forward Jumps for Gillespie Two Steps
         elif algo == "2S":
-            t_forward, x_forward, t_reverse, x_reverse = get_jump_nature(t_matrix, x_matrix)
+            t_forward, x_forward, _, _ = get_jump_nature(t_matrix, x_matrix)
             t_analysis = np.cumsum(t_forward, axis=1)
-            del t_forward
-            gc.collect()
             x_analysis = x_forward
-            del x_forward
-            gc.collect()
+
+        # ------- [Sites][vi_*]
         
-        # Instantaneous Speeds [Sites][vi_*]
+        # Instantaneous Speeds
         dx_points, dx_distrib, dx_mean, dx_med, dx_mp, \
         dt_points, dt_distrib, dt_mean, dt_med, dt_mp, \
         vi_points, vi_distrib, vi_mean, vi_med, vi_mp = clc_inst_speeds(
             t_analysis, x_analysis
-        )            
-        
-        x_matrix_c = clc_compaction_positions()
-        # Instantaneous Speeds [Base Pairs][vb_*]
-        vc_points, vc_distrib, vc_mean, vc_med, vc_mp = clc_compaction_statistics(
-            alpha_matrix, t_matrix, x_matrix, c_linker, c_nucleo
         )
+
+        # ------- [Base Pairs][vc_*]
+
+        # Conversion
+        x_deltas_c = clc_compaction_deltas(
+                alpha_matrix, x_analysis, c_linker, c_nucleo
+            )
+             
+        # Trajectories
+        results_c = reconstitute_mean_trajectory(
+            t_forward, x_deltas_c, tmax
+        )
+
+        # Linear speeds
+        _, _, _, vc_mean, vc_med = clc_results(
+            results_c, dt, alpha0, lb=lb
+        )
+
+        print(vc_mean, v_mean_th)
                     
     except Exception as e:
         print(f"Error in Analysis 4 - Speeds : {e}")
@@ -535,6 +552,7 @@ def sw_nucleo(
 
         # Cleaning data for memory
         del alpha_matrix
+        del t_forward, x_forward
         gc.collect()
 
         
@@ -617,7 +635,6 @@ def sw_nucleo(
         # --- Compaction --- #
         'vc_mean'    : vc_mean,
         'vc_med'     : vc_med,
-        'vc_mp'      : vc_mp
         
         })
 
@@ -642,7 +659,7 @@ def sw_nucleo(
                 # --- Raw Datas --- #
                 'p'            : p,
 
-                # --- Results --- #
+                # --- Results [Sites] --- #
                 'results_mean' : results_mean,
                 'results_med'  : results_med,
                 'results_std'  : results_std,
@@ -674,8 +691,8 @@ def sw_nucleo(
                 'vi_points'    : vi_points,
                 'vi_distrib'   : vi_distrib,
                 
-                'vc_points'    : vc_points,
-                'vc_distrib'   : vc_distrib,
+                # 'vc_points'    : vc_points,
+                # 'vc_distrib'   : vc_distrib,
 
                 # --- Fits --- #
                 'alpha0'       : alpha0,
@@ -683,6 +700,7 @@ def sw_nucleo(
                 'G'            : G,
                 'bound_low'    : bound_low,
                 'bound_high'   : bound_high,
+                'lb'           : lb
 
             })
 
