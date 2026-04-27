@@ -28,8 +28,9 @@ def reconstitute_mean_trajectory(
     t_matrix: np.ndarray,
     x_matrix: np.ndarray,
     tmax: int,
+    dt: float,
 ) -> tuple[np.ndarray, np.ndarray]:
-    bins  = np.arange(1, tmax + 1, dtype=float)
+    bins  = np.arange(1, tmax + 1, dt, dtype=float)
     sum_x = np.zeros(tmax)
     count = np.zeros(tmax, dtype=np.int32)
 
@@ -52,7 +53,7 @@ def reconstitute_mean_trajectory(
         count[hit]  += 1
 
     mean_x = np.where(count > 0, sum_x / count, np.nan)
-    return mean_x
+    return np.concatenate(([0.0], mean_x[:-1]))
 
 
 # 2.2 Sites / Base Pairs

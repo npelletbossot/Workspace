@@ -131,36 +131,35 @@ def clc_compaction_landscape(alpha_matrix: np.ndarray) -> np.ndarray:
     return np.cumsum(alpha_matrix, axis=1)
 
 
-def clc_compaction_deltas(
+def clc_compaction_positions(
     alpha_matrix: np.ndarray,
     x_matrix: np.ndarray,
     c_linker: float,
     c_nucleo: float,
 ) -> np.ndarray:
     """
-    delta_bp = c_nucleo * delta_x + (c_linker - c_nucleo) * (C[x1] - C[x0])
-    v_bp     = delta_bp / delta_t
+    x_bp[i, j] = cumulative sum of delta_bp from 0 to j
     """
     n_i, n_j = x_matrix.shape
     alpha_matrix_c = clc_compaction_landscape(alpha_matrix)
-    x_deltas_bp = np.full((n_i, n_j), np.nan)
+    x_bp = np.full((n_i, n_j), np.nan)
 
     for i in range(n_i):
-        x_deltas_bp[i, 0] = 0
+        x_bp[i, 0] = 0.0  # position initiale = 0
+        cumul = 0.0
         for j in range(n_j - 1):
             xf_float = x_matrix[i, j + 1]
             if np.isnan(xf_float):
                 continue
-
             xi = int(x_matrix[i, j])
             xf = int(xf_float)
-
-            delta_x  = xf - xi
+            delta_x   = xf - xi
             sum_alpha = alpha_matrix_c[i, xf] - alpha_matrix_c[i, xi]
-            delta_bp = c_nucleo * delta_x + (c_linker - c_nucleo) * sum_alpha
-            x_deltas_bp[i, j+1] = int(delta_bp)
+            delta_bp  = c_nucleo * delta_x + (c_linker - c_nucleo) * sum_alpha
+            cumul += delta_bp
+            x_bp[i, j + 1] = cumul
 
-    return x_deltas_bp
+    return x_bp
 
 
 # def clc_compaction_statistics(

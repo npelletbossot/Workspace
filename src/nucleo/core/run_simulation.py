@@ -52,9 +52,9 @@ from nucleo.metrics.speeds import (
     clc_inst_speeds
 )
 
-from nucleo.metrics.compaction import clc_compaction_deltas
-
 from nucleo.metrics.twosteps import get_jump_nature
+
+from nucleo.metrics.compaction import clc_compaction_positions
 
 # 1.2.4 : Writing
 from nucleo.io.writing import inspect_data_types, writing_parquet
@@ -345,7 +345,7 @@ def sw_nucleo(
                 alpha_matrix[i] = destroy_obstacles(alpha_matrix[i], alphad, alphaf, alphao, first_point, last_point)
                 
     except Exception as e:
-        print(f"Error in Input 1 - Chromatin : {e}")
+        print(f"Error in Input 1 : Chromatin : {e}")
             
 
     # ------------------- Input 2 : Probability ------------------- #
@@ -356,7 +356,7 @@ def sw_nucleo(
         p = proba_gamma(mu, theta, L)
     
     except Exception as e:
-        print(f"Error in Input 2 - Probability : {e}")
+        print(f"Error in Input 2 : Probability : {e}")
     
     
     # ------------------- Simulations ------------------- #
@@ -389,7 +389,7 @@ def sw_nucleo(
         t_matrix = listoflist_into_matrix(t_matrix)
         
     except Exception as e:
-        print(f"Error in Simulations: {e} in {title}")
+        print(f"Error in Simulations : {e} in {title}")
         
         
     # ------------------- Analysis 1 : Landscape ------------------- #
@@ -416,7 +416,7 @@ def sw_nucleo(
 
 
     except Exception as e:
-        print(f"Error in Analysis 1 - Landscape : {e}")
+        print(f"Error in Analysis 1 : Landscape : {e}")
         
 
     # ------------------- Analysis 2 : Trajectories ------------------- #
@@ -438,10 +438,10 @@ def sw_nucleo(
         )
     
     except Exception as e:
-        print(f"Error in Analysis 2 - Trajectories: {e}")
+        print(f"Error in Analysis 2 : Trajectories: {e}")
         
     
-    # ------------------- Analysis 2 : Jump size + Jump time + First pass times ------------------- #
+    # ------------------- Analysis 3 : Jump size + Jump time + First pass times ------------------- #
     
     if total_return:
         
@@ -464,10 +464,10 @@ def sw_nucleo(
             fpt_distrib, fpt_number = clc_fpt_matrix(t_matrix, x_matrix, tmax, bint) 
             
         except Exception as e:
-            print(f"Error in Analysis 3 - Jump size + Time size + First pass times : {e}")
+            print(f"Error in Analysis 3 : Jump size + Time size + First pass times : {e}")
 
 
-    # ------------------- Analysis 4 : Speeds ------------------- #
+    # ------------------- Analysis 4.1 : Speeds in Sites ------------------- #
     
     try:
         
@@ -494,56 +494,59 @@ def sw_nucleo(
             t_analysis, x_analysis
         )
 
+    except Exception as e:
+        print(f"Error in Analysis 4.1 : Speeds in Sites: {e}")
+
+
+    # ------------------- Analysis 4.2 : Speeds in Base Pairs ------------------- #
+
+    try:
+
         # ------- [Base Pairs][vc_*]
 
         # Conversion
-        x_deltas_c = clc_compaction_deltas(
+        x_matrix_c = clc_compaction_positions(
                 alpha_matrix, x_analysis, c_linker, c_nucleo
             )
-             
+
         # Trajectories
         results_c = reconstitute_mean_trajectory(
-            t_forward, x_deltas_c, tmax
+            t_forward, x_matrix_c, tmax, dt
         )
+        # print(results_c)
 
         # Linear speeds
         _, _, _, vc_mean, vc_med = clc_results(
             results_c, dt, alpha0, lb=lb
         )
-
-        print(vc_mean, v_mean_th)
                     
     except Exception as e:
-        print(f"Error in Analysis 4 - Speeds : {e}")
+        print(f"Analysis 4.2 : Speeds in Base Pairs")
          
-
-    # ------------------- Analysis 4 : Rates and Taus ------------------- #
-    
-    # try:
-    
-    #     if (FORMALISM == "2") or (FORMALISM == "3"):
-            
-            # # Dwell times
-            # dwell_points, forward_result, reverse_result = calculate_dwell_distribution(
-            #     t_matrix, x_matrix, t_fb, t_lb, t_bw
-            # )
-            # tau_forwards, tau_reverses = calculate_dwell_times(
-            #     dwell_points, distrib_forwards=forward_result, distrib_reverses=reverse_result, xmax=100
-            # )
-
-            # # Rates and Taus
-            # fb_y, fr_y, rb_y, rr_y = calculate_nature_jump_distribution(t_matrix, x_matrix, t_fb, t_lb, t_bw)
-            # tau_fb, tau_fr, tau_rb, tau_rr = extracting_taus(fb_y, fr_y, rb_y, rr_y, t_bins)
-            # rtot_capt_fit, rtot_rest_fit = calculating_rates(tau_fb, tau_fr, tau_rb, tau_rr)
-            # v_th_fit = calculate_theoretical_speed(alphaf, alphao, s, l, mu, lmbda, rtot_capt_fit, rtot_rest_fit, alphar, kB, kU, FORMALISM)
-            
-    # except Exception as e:
-    #     print(f"Error in Analysis 4 - Rates and Taus : {e} for {title}")
-
 
     # ------------------- Tests ------------------- #
 
-    # print(type(vc_mean), vc_mean)
+    # # Test.1 : reconstitute_mean_trajectory
+    # test_1 = results_mean
+    # test_2 = reconstitute_mean_trajectory(t_matrix, x_matrix, tmax, dt)
+    # print(
+    #     f"reconstitute_mean_trajectory works:\n"
+    #     f"{test_1}\n{test_2}\n\n"
+    # )
+
+    # Test.2 : x_forward
+    # print(x_matrix)
+
+
+    # Test.3 : results_c
+    # print(results_c)
+    # print(results_mean)
+    c_mean = (l * c_linker + s * c_nucleo) / (l + s)
+    # print(f"TEST : {results_c}\n{results_mean * c_mean}\n\n")
+
+    print(t_forward)
+
+
     
     
     # ------------------- Data ------------------- #
