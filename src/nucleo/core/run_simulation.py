@@ -534,19 +534,13 @@ def sw_nucleo(
     #     f"{test_1}\n{test_2}\n\n"
     # )
 
-    # Test.2 : x_forward
+    # # Test.2 : x_forward
     # print(x_matrix)
 
-
-    # Test.3 : results_c
+    # # Test.3 : results_c
     # print(results_c)
     # print(results_mean)
-    c_mean = (l * c_linker + s * c_nucleo) / (l + s)
     # print(f"TEST : {results_c}\n{results_mean * c_mean}\n\n")
-
-    print(t_forward)
-
-
     
     
     # ------------------- Data ------------------- #
