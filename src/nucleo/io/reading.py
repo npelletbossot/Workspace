@@ -26,7 +26,7 @@ from tqdm import tqdm
 
 PARAMS = [
     "algo", "fact", "mode",  "dstr",
-    "landscape", "s", "l", "bpmin",
+    "land", "s", "l", "bpmin",
     "mu", "theta",
     "alphar", "Kp", "Kz",
     "alphaf", "alphao", 
@@ -68,15 +68,9 @@ def reading_one_parquet(root: str | Path) -> pl.DataFrame:
 
 def finding_one_parquet(root: str, params: dict) -> pl.DataFrame:
 
-    COLUMN_ALIASES = {
-        "land"      : "landscape",
-    }
-
-    params = {COLUMN_ALIASES.get(k, k): v for k, v in params.items()}
-
     required_params = {
         "algo", "fact", "mode", "dstr",
-        "landscape", "s", "l", "bpmin",
+        "land", "s", "l", "bpmin",
         "mu", "theta", "alphar", "Kp", "Kz"
     }
     missing = required_params - params.keys()
@@ -272,7 +266,7 @@ def reading_heatmap_one_config(
     Reads heatmap data for one specific configuration.
 
     Args:
-        config (dict): must contain 's', 'l', 'bpmin', 'alpha_choice' or 'landscape'
+        config (dict): must contain 's', 'l', 'bpmin', 'alpha_choice' or 'land'
         data_type (str): one of ["full_data", "heatmap_raw", "heatmap_mu", "heatmap_th"]
         root (Path): directory containing parquet + heatmap pickle files
 
@@ -342,7 +336,7 @@ def reading_heatmap_one_config(
     for _, cfg_data in computed_data.items():
         cfg = cfg_data["config"]
 
-        alpha = cfg.get("landscape", cfg.get("alpha_choice", "unknown"))
+        alpha = cfg.get("land", cfg.get("alpha_choice", "unknown"))
         s = cfg["s"]
         l = cfg["l"]
         bpmin = cfg["bpmin"]
@@ -356,7 +350,7 @@ def reading_heatmap_one_config(
     # 5 : Build configuration key
     # ─────────────────────────────────────────────
 
-    key_alpha = config.get("landscape", config.get("alpha_choice", "unknown"))
+    key_alpha = config.get("land", config.get("alpha_choice", "unknown"))
     my_key = f"s{config['s']}_l{config['l']}_bp{config['bpmin']}_{key_alpha}"
 
     if my_key not in computed_data:
