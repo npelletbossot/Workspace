@@ -112,9 +112,9 @@ def choose_configuration(config: str) -> dict:
         "rrest": 1/6,   # Rate of resting (1/6)
         # "kB" : 0.50,        # Rate of FACT Binding
         # "kU": 0.50,         # Rate of FACT Unbinding
-        "Ktot" : 0.0,       # = kB + kU         : New formalism -> Checking that even with =1.0 it doesn't affect if non called          
-        "Kp": 0.0,          # = kB / (kB + kU)  : New formalism -> Checking that even with =1.0 it doesn't affect if non called
-        "Kz": 0.0           # = P_F(t=0)        : New formalism -> Checking that even with =1.0 it doesn't affect if non called
+        "krel" : 0.0,       # = kBp + kU         : New formalism -> Checking that even with =1.0 it doesn't affect if non called          
+        "Kp": 0.0,          # = kB  / (kB + kU)  : New formalism -> Checking that even with =1.0 it doesn't affect if non called
+        "Kz": 0.0           # = kBp / (kBp + kU) : New formalism -> Checking that even with =1.0 it doesn't affect if non called
     }
     
     # ──────────────────────────────────
@@ -136,7 +136,7 @@ def choose_configuration(config: str) -> dict:
         "rates": {
             "rcapt": np.array([RATES["rcapt"]], dtype=float),
             "rrest": np.array([RATES["rrest"]], dtype=float),
-            "Ktot": np.array([RATES["Ktot"]], dtype=float),
+            "krel": np.array([RATES["krel"]], dtype=float),
             "Kp": np.array([RATES["Kp"]], dtype=float),
             "Kz": np.array([RATES["Kz"]], dtype=float),
         },
@@ -165,7 +165,7 @@ def choose_configuration(config: str) -> dict:
         "rates": {
             "rcapt": np.array([RATES["rcapt"]], dtype=float),
             "rrest": np.array([RATES["rrest"]], dtype=float),
-            "Ktot": np.array([RATES["Ktot"]], dtype=float),
+            "krel": np.array([RATES["krel"]], dtype=float),
             "Kp": np.array([RATES["Kp"]], dtype=float),
             "Kz": np.array([RATES["Kz"]], dtype=float),
         },
@@ -186,18 +186,18 @@ def choose_configuration(config: str) -> dict:
         },
         "probas": {
             "mu": np.array([150], dtype=int),
-            "theta": np.array([25, 50, 100], dtype=int),
+            "theta": np.array([50, 100], dtype=int),
             "alphao": np.array([PROBAS["alphao"]], dtype=float),
             "alphaf": np.array([PROBAS["alphaf"]], dtype=float),
             "beta": np.array([PROBAS["beta"]], dtype=float),
             "alphac": np.array([PROBAS["alphac"]], dtype=float),
             "alphad": np.array([PROBAS["alphad"]], dtype=float),
-            "alphar": np.arange(0.00, 1.00 + 0.10, 0.10, dtype=float),
+            "alphar": np.arange(0.00, 1.00 + 0.10, 0.20, dtype=float),
         },
         "rates": {
             "rcapt": np.array([RATES["rcapt"]], dtype=float),
             "rrest": np.array([RATES["rrest"]], dtype=float),
-            "Ktot": np.array([1.00], dtype=float),
+            "krel": np.array([1.00], dtype=float),
             "Kp": np.arange(0.0, 1.0 + 0.10, 0.10, dtype=float),
             "Kz": np.arange(0.0, 1.0 + 0.10, 0.10, dtype=float),
         },
@@ -209,7 +209,7 @@ def choose_configuration(config: str) -> dict:
     }
     
     TEST__BASE = {
-        "formalism": {**FORMALISMS['alg2_active_memory']},
+        "formalism": {**FORMALISMS['alg1']},
         "geometry": {
             "land": np.array(['homogen', 'periodic', 'random']),
             "s": np.array([35], dtype=int),
@@ -229,7 +229,7 @@ def choose_configuration(config: str) -> dict:
         "rates": {
             "rcapt": np.array([RATES["rcapt"]], dtype=float),
             "rrest": np.array([RATES["rrest"]], dtype=float),
-            "Ktot": np.array([RATES["Ktot"]], dtype=float),
+            "krel": np.array([RATES["krel"]], dtype=float),
             "Kp":  np.array([RATES["Kp"]], dtype=float),
             "Kz":  np.array([RATES["Kz"]], dtype=float),
         },

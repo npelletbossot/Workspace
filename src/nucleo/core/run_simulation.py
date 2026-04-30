@@ -75,7 +75,7 @@ def checking_inputs(
     alphaf, alphao, beta,
     rcapt, rrest,
     alphac, alphad, alphar, 
-    Ktot, Kp, Kz,
+    krel, Kp, Kz,
     Lmin, Lmax, bps, origin,
     tmax, dt,
     nt, path, data_return, total_return
@@ -188,10 +188,10 @@ def checking_inputs(
                     f"Invalid {name}={val}: must be a float strictly > 0."
                 )
     
-        # --- Ktot (kB + kU) ---
-        if Ktot < 0:
+        # --- krel ( = kBp + kU) ---
+        if krel < 0:
             raise ValueError(
-                f"Invalid Ktot={Ktot}: must be a float > or = to 0."
+                f"Invalid krel={krel}: must be a float > or = to 0."
             )
         # --- Kp and Kz (probabilities) ---
         kcheck = np.asarray([Kp, Kz])
@@ -247,7 +247,7 @@ def sw_nucleo(
     alphaf: float, alphao: float, beta: float, 
     rcapt: float, rrest: float,
     alphac: float, alphad: float, alphar: float, 
-    Ktot: float, Kp: float, Kz: float,
+    krel: float, Kp: float, Kz: float,
     Lmin: int, Lmax: int, bps: int, origin: int,
     tmax: float, dt: float,
     nt: int, path: str,
@@ -300,7 +300,7 @@ def sw_nucleo(
             f"mu={mu}__theta={theta}__"
             f"rcapt={rcapt:.1e}__rrest={rrest:.1e}__"
             f"alphac={alphac:.1e}__alphad={alphad:.1e}__alphar={alphar:.1e}__"
-            f"Ktot={Ktot:.1e}__Kp={Kp:.1e}__Kz={Kz:.1e}__"
+            f"krel={krel:.1e}__Kp={Kp:.1e}__Kz={Kz:.1e}__"
             f"nt={nt:.1e}__"
     )
     
@@ -378,7 +378,7 @@ def sw_nucleo(
                 alphao, beta,
                 rcapt, rrest, 
                 alphac, alphar, 
-                Ktot, Kp, Kz, 
+                krel, Kp, Kz, 
                 L, origin, bps,
                 tmax, dt, 
                 nt
@@ -511,9 +511,8 @@ def sw_nucleo(
 
         # Trajectories
         results_c = reconstitute_mean_trajectory(
-            t_forward, x_matrix_c, tmax, dt
+            t_analysis, x_matrix_c, tmax, dt
         )
-        # print(results_c)
 
         # Linear speeds
         _, _, _, vc_mean, vc_med = clc_results(
@@ -526,20 +525,20 @@ def sw_nucleo(
 
     # ------------------- Tests ------------------- #
 
-    # # Test.1 : reconstitute_mean_trajectory
+    # # Test.1 : reconstitute_mean_trajectory
     # test_1 = results_mean
     # test_2 = reconstitute_mean_trajectory(t_matrix, x_matrix, tmax, dt)
     # print(
-    #     f"reconstitute_mean_trajectory works:\n"
+    #     f"reconstitute_mean_trajectory:\n"
     #     f"{test_1}\n{test_2}\n\n"
     # )
+
+    
 
     # # Test.2 : x_forward
     # print(x_matrix)
 
-    # # Test.3 : results_c
-    # print(results_c)
-    # print(results_mean)
+    # Test.3 : results_c
     # print(f"TEST : {results_c}\n{results_mean * c_mean}\n\n")
     
     
@@ -549,7 +548,6 @@ def sw_nucleo(
 
         # Cleaning data for memory
         del alpha_matrix
-        del t_forward, x_forward
         gc.collect()
 
         
@@ -576,7 +574,7 @@ def sw_nucleo(
             'alphac'    : alphac,
             'alphad'    : alphad,
             'alphar'    : alphar,
-            'Ktot'      : Ktot,
+            'krel'      : krel,
             'Kp'        : Kp,
             'Kz'        : Kz,
             'c_linker'  : c_linker,
@@ -758,7 +756,7 @@ def process_run(params: dict, formalism: dict, chromatin: dict, time: dict, meta
         alphad=params['alphad'],
         alphar=params['alphar'],
 
-        Ktot=params['Ktot'],
+        krel=params['krel'],
         Kp=params['Kp'],
         Kz=params['Kz'],
         
@@ -784,7 +782,7 @@ def process_run(params: dict, formalism: dict, chromatin: dict, time: dict, meta
         params["alphaf"], params["alphao"], params["beta"],
         params["rcapt"], params["rrest"],
         params["alphac"], params["alphad"], params["alphar"],
-        params["Ktot"], params["Kp"], params["Kz"],
+        params["krel"], params["Kp"], params["Kz"],
         
         chromatin["Lmin"], chromatin["Lmax"], chromatin["bps"], chromatin["origin"],
         time["tmax"], time["dt"],

@@ -312,7 +312,7 @@ def gillespie_algo_two_steps(
     rtot_rest: float,
     alphac: float,
     alphar: float,
-    Ktot: float,
+    krel: float,
     Kp: float,
     Kz: float,
     L: np.ndarray,
@@ -498,7 +498,7 @@ def gillespie_algo_two_steps(
                     x, r_capt,
                     pos_obs, start_obs, end_obs,
                     alphar,
-                    Ktot, Kp, Kz, t_rest, 
+                    krel, Kp, Kz, t_rest, 
                 )
             
             # --- Capturing : Time Condition --- #

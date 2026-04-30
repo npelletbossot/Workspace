@@ -30,7 +30,7 @@ def reconstitute_mean_trajectory(
     tmax: int,
     dt: float,
 ) -> tuple[np.ndarray, np.ndarray]:
-    bins  = np.arange(1, tmax + 1, dt, dtype=float)
+    bins  = np.arange(dt, tmax + dt, dt, dtype=float)
     sum_x = np.zeros(tmax)
     count = np.zeros(tmax, dtype=np.int32)
 

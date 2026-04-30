@@ -100,7 +100,7 @@ def generate_param_combinations(cfg: dict) -> list[dict]:
         'alphaf', 'alphao', 'beta', 
         'rcapt', 'rrest',
         'alphac', 'alphad', 'alphar',
-        'Ktot', 'Kp', 'Kz',
+        'krel', 'Kp', 'Kz',
     ]
     
     # All combinations
@@ -110,7 +110,7 @@ def generate_param_combinations(cfg: dict) -> list[dict]:
         probas['alphaf'], probas['alphao'], probas['beta'], 
         rates['rcapt'], rates['rrest'],
         probas['alphac'], probas['alphad'], probas['alphar'], 
-        rates['Ktot'], rates['Kp'], rates['Kz'],
+        rates['krel'], rates['Kp'], rates['Kz'],
     )
         
     return [
