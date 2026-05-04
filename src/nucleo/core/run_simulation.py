@@ -320,9 +320,9 @@ def sw_nucleo(
     t_fb, t_lb, t_bw = 0, 100, 0.20
     x_bins = np.arange(x_fb, x_lb, x_bw)
     t_bins = np.arange(t_fb, t_lb, t_bw)
-    binx = int(1e0)
-    bint = int(1e+1)
-    lb = int(20)
+    binx   = int(1e0)
+    bint   = int(1e+1)
+    lb     = int(20)
 
 
     # ------------------- Input 1 : Chromatin ------------------- #
