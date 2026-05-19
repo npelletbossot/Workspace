@@ -31,8 +31,9 @@ def reconstitute_mean_trajectory(
     dt: float,
 ) -> tuple[np.ndarray, np.ndarray]:
     bins  = np.arange(dt, tmax + dt, dt, dtype=float)
-    sum_x = np.zeros(tmax)
-    count = np.zeros(tmax, dtype=np.int32)
+    n = len(bins)
+    sum_x = np.zeros(n)
+    count = np.zeros(n, dtype=np.int32)
 
     for t_row, x_row in zip(t_matrix, x_matrix):
         valid = np.isfinite(t_row) & np.isfinite(x_row) & (t_row < tmax)
@@ -45,12 +46,10 @@ def reconstitute_mean_trajectory(
         order = np.argsort(t_v)
         t_v   = t_v[order]
         x_v   = x_v[order]
-
         idx = np.searchsorted(t_v, bins, side="right") - 1
         hit = idx >= 0
-
         sum_x[hit] += x_v[idx[hit]]
-        count[hit]  += 1
+        count[hit] += 1
 
     mean_x = np.where(count > 0, sum_x / count, np.nan)
     return np.concatenate(([0.0], mean_x[:-1]))

@@ -209,7 +209,7 @@ def choose_configuration(config: str) -> dict:
     }
     
     TEST__BASE = {
-        "formalism": {**FORMALISMS['alg1']},
+        "formalism": {**FORMALISMS['alg2_passive_full']},
         "geometry": {
             "land": np.array(['homogen', 'periodic', 'random']),
             "s": np.array([35], dtype=int),
@@ -230,11 +230,11 @@ def choose_configuration(config: str) -> dict:
             "rcapt": np.array([RATES["rcapt"]], dtype=float),
             "rrest": np.array([RATES["rrest"]], dtype=float),
             "krel": np.array([RATES["krel"]], dtype=float),
-            "Kp":  np.array([RATES["Kp"]], dtype=float),
-            "Kz":  np.array([RATES["Kz"]], dtype=float),
+            "Kp": np.array([RATES["Kp"]], dtype=float),
+            "Kz": np.array([RATES["Kz"]], dtype=float),
         },
         "meta": {
-            "nt": 100,
+            "nt": 10_000,
             "data_return": True,
             "total_return": True
         }
@@ -400,9 +400,23 @@ def choose_configuration(config: str) -> dict:
         
         "TEST": {
             **TEST__BASE,
+            "probas": {
+                **TEST__BASE["probas"],
+                "alphac": np.array([1.00], dtype=float),
+            },
+            "rates": {
+                **TEST__BASE["rates"],
+                "Kp": np.array([0.00], dtype=float),
+                "rcapt": np.array([2.00], dtype=float),
+                "rrest": np.array([2.00], dtype=float),
+            },
             "meta": {
                 **TEST__BASE["meta"],
                 "path": f"{PROJECT['project_name']}__test"
+            },
+            "time": {
+                **TIME,
+                "dt": 1e-1
             }
         },
 
@@ -419,7 +433,7 @@ def choose_configuration(config: str) -> dict:
             "probas": {
                 **ONESTEP__BASE["probas"],
                 "mu": np.array([160], dtype=int),
-                "theta": np.arange(1, 1001, 1, dtype=int)
+                "theta": np.arange(1, 101, 1, dtype=int)
             },
             "meta": {
                 **ONESTEP__BASE["meta"],
@@ -473,10 +487,9 @@ def choose_configuration(config: str) -> dict:
 
     if config not in presets:
         raise ValueError(f"Unknown configuration: {config}")
-
     return {
         **presets[config],
         "project": PROJECT,
         "chromatin": CHROMATIN,
-        "time": TIME
+        "time": presets[config].get("time", TIME)  # respecte l'override si présent
     }
