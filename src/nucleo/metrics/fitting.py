@@ -18,7 +18,7 @@ from scipy.stats import linregress
 # ─────────────────────────────────────────────
 
 
-def linear_fit(array: np.ndarray, step: float, offset: int) -> float:
+def linear_fit(array: np.ndarray, step: float) -> float:
     """
     Linear regression without forcing intercept = 0.
     Ignores NaN values in the array.
@@ -39,7 +39,7 @@ def linear_fit(array: np.ndarray, step: float, offset: int) -> float:
         return np.nan
 
     idx = np.arange(len(array))[valid_mask]
-    x = offset + idx
+    x = idx
     x = x * step
     x = x[:, np.newaxis]  # shape (N, 1)
 
@@ -124,17 +124,22 @@ def fitting_in_two_steps(times, positions, deviations, bound_low=5, bound_high=8
     # Filter data before fitting
     times, positions, deviations = filtering_before_fit(times, positions, deviations)
 
-    # Check if there's enough data for both bounds
-    if len(positions) < max(bound_high, bound_low + 2):
-        return None, None, None, None, None, None, None, None, None, None
+    # Getting the filter points in %
+    n_pts = len(times)
+    lb_idx = int(bound_low / 100 * n_pts)
+    ub_idx = int(bound_high / 100 * n_pts)
 
     # Remove the first point to avoid (0, 0)
     times = times[1:]
     positions = positions[1:]
 
+    # Check if there's enough data for both bounds
+    if len(positions) < max(ub_idx, lb_idx + 2):
+        return None, None, None, None, None, None, None, None, None, None
+
     # Step 1: linear average of x(t)/t over early time
     xt_over_t = np.divide(positions, times)
-    array_low = xt_over_t[:bound_low]
+    array_low = xt_over_t[:lb_idx]
     vf = np.mean(array_low)
     vf_std = np.std(array_low)
 
@@ -144,24 +149,17 @@ def fitting_in_two_steps(times, positions, deviations, bound_low=5, bound_high=8
     G = np.divide(dlogx, dlogt)
 
     # Step 3: check if there are enough points for log-log fit
-    if len(times) <= bound_high + 1:
+    if len(times) <= ub_idx + 1:
         return None, None, None, None, None, None, None, None, None, None
 
     # Step 4: log-log fit of x(t) = Cf * t^wf on the right side
-    log_t_high = np.log(times[bound_high:])
-    log_x_high = np.log(positions[bound_high:])
-    
-    # Linear fit with covariance
+    log_t_high = np.log(times[ub_idx:])
+    log_x_high = np.log(positions[ub_idx:])
     coeffs, cov = np.polyfit(log_t_high, log_x_high, 1, cov=True)
-
     wf = coeffs[0]
-    intercept = coeffs[1]
-    Cf = np.exp(intercept)
-
-    # Error estimates
+    Cf = np.exp(coeffs[1])
     wf_std = np.sqrt(cov[0, 0])
-    intercept_std = np.sqrt(cov[1, 1])
-    Cf_std = Cf * intercept_std
+    Cf_std = Cf * np.sqrt(cov[1, 1])
 
     return (
         vf, Cf, wf,

@@ -63,6 +63,7 @@ def clc_results(
     dt: float,
     alpha_0: float,
     lb: int,
+    ub: int = 100
 ) -> tuple:
     """
     Calculate main statistics and derived results for a matrix of trajectories.
@@ -71,7 +72,7 @@ def clc_results(
         results (np.ndarray): A matrix containing the positions for each time step across all trajectories.
         dt (float): Time step size used in the modeling.
         alpha_0 (float): Linear scaling factor for velocity calculations (unused in trajectory definition).
-        nt (int): Total number of trajectories.
+        lb (int): Low Bound of fitting.
 
 
     Returns:
@@ -93,17 +94,22 @@ def clc_results(
       - results 1D (tmax,)    : déjà la trajectoire moyenne, fit direct
     """
     if results.ndim == 2:
+        n_pts        = results.shape[1] 
         mean_results = np.nanmean(results, axis=0)
         med_results  = np.nanmedian(results, axis=0)
         std_results  = np.nanstd(results, axis=0)
     elif results.ndim == 1:
+        n_pts        = len(results) 
         mean_results = results
-        med_results  = results       # même courbe, pas d'info supplémentaire
-        std_results  = np.full_like(results, np.nan)  # indisponible
+        med_results  = results
+        std_results  = np.full_like(results, np.nan)
     else:
         raise ValueError(f"results must be 1D or 2D, got shape {results.shape}")
+    
+    lb_idx = int(lb / 100.0 * n_pts)
+    ub_idx = int(ub / 100.0 * n_pts)
 
-    v_mean = linear_fit(mean_results[lb:], dt, offset=lb) * alpha_0
-    v_med  = linear_fit(med_results[lb:],  dt, offset=lb) * alpha_0
+    v_mean = linear_fit(mean_results[lb_idx:ub_idx], dt) * alpha_0
+    v_med  = linear_fit(med_results[lb_idx:ub_idx], dt) * alpha_0
 
     return mean_results, med_results, std_results, v_mean, v_med

@@ -108,8 +108,8 @@ def choose_configuration(config: str) -> dict:
     }
 
     RATES = {
-        "rcapt": 1/6,   # Rate of capturing (1/6)
-        "rrest": 1/6,   # Rate of resting (1/6)
+        "rcapt": 2.0,   # Rate of capturing (1/6)
+        "rrest": 2.0,   # Rate of resting (1/6)
         # "kB" : 0.50,        # Rate of FACT Binding
         # "kU": 0.50,         # Rate of FACT Unbinding
         "krel" : 0.0,       # = kBp + kU         : New formalism -> Checking that even with =1.0 it doesn't affect if non called          
@@ -186,7 +186,7 @@ def choose_configuration(config: str) -> dict:
         },
         "probas": {
             "mu": np.array([150], dtype=int),
-            "theta": np.array([50, 100], dtype=int),
+            "theta": np.array([100], dtype=int),
             "alphao": np.array([PROBAS["alphao"]], dtype=float),
             "alphaf": np.array([PROBAS["alphaf"]], dtype=float),
             "beta": np.array([PROBAS["beta"]], dtype=float),
@@ -199,7 +199,7 @@ def choose_configuration(config: str) -> dict:
             "rrest": np.array([RATES["rrest"]], dtype=float),
             "krel": np.array([1.00], dtype=float),
             "Kp": np.arange(0.0, 1.0 + 0.10, 0.10, dtype=float),
-            "Kz": np.arange(0.0, 1.0 + 0.10, 0.10, dtype=float),
+            "Kz": np.array([0.00, 0.50, 1.00], dtype=float),
         },
         "meta": {
             "nt": 10_000,
@@ -212,7 +212,7 @@ def choose_configuration(config: str) -> dict:
         "formalism": {**FORMALISMS['alg2_passive_full']},
         "geometry": {
             "land": np.array(['homogen', 'periodic', 'random']),
-            "s": np.array([35], dtype=int),
+            "s": np.array([0], dtype=int),
             "l": np.array([10], dtype=int),
             "bpmin": np.array([0], dtype=int)
         },
@@ -412,6 +412,7 @@ def choose_configuration(config: str) -> dict:
             },
             "meta": {
                 **TEST__BASE["meta"],
+                "nt": 100,
                 "path": f"{PROJECT['project_name']}__test"
             },
             "time": {
