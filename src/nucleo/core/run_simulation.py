@@ -318,11 +318,13 @@ def sw_nucleo(
     # Bins for Positions and Times : fb (firstbin) - lb (lastbin) - bw (binwidth)
     x_fb, x_lb, x_bw = 0, 10_000, 1
     t_fb, t_lb, t_bw = 0, 100, 0.20
-    x_bins = np.arange(x_fb, x_lb, x_bw)
-    t_bins = np.arange(t_fb, t_lb, t_bw)
-    binx   = int(1e0)
-    bint   = int(1e+1)
-    lb     = int(20)
+    x_bins  = np.arange(x_fb, x_lb, x_bw)
+    t_bins  = np.arange(t_fb, t_lb, t_bw)
+    binx    = int(1e+0) 
+    bint    = int(1e+1)
+    bound_l = int(10)   # vf : 10 - 20
+    bound_m = int(20)   # v_mean : 20 - 90
+    bound_h = int(90)   # wf : 90 - 100
 
 
     # ------------------- Tests ------------------- #
@@ -433,12 +435,12 @@ def sw_nucleo(
 
         # Site Statistics [Sites][v_*]
         results_mean, results_med, results_std, v_mean, v_med = clc_results(
-            results, dt, alpha0, lb=lb
+            results, dt, alpha0, bound_m, bound_h
         )
         
         # Fits [Sites][v_*]
-        vf, Cf, wf, vf_std, Cf_std, wf_std, xt_over_t, G, bound_low, bound_high = fitting_in_two_steps(
-            times, results_mean, results_std
+        vf, Cf, wf, vf_std, Cf_std, wf_std, xt_over_t, G = fitting_in_two_steps(
+            times, results_mean, results_std, bound_l, bound_m, bound_h
         )
     
     except Exception as e:
@@ -520,7 +522,7 @@ def sw_nucleo(
 
         # Linear speeds
         _, _, _, vc_mean, vc_med = clc_results(
-            results_c, dt, alpha0, lb=lb
+            results_c, dt, alpha0, bound_m, bound_h
         )
                     
     except Exception as e:
@@ -536,8 +538,6 @@ def sw_nucleo(
     #     f"reconstitute_mean_trajectory:\n"
     #     f"{test_1}\n{test_2}\n\n"
     # )
-
-    
 
     # # Test.2 : x_forward
     # print(x_matrix)
@@ -598,6 +598,14 @@ def sw_nucleo(
             # --- Bins --- #
             'binx'      : binx,
             'bint'      : bint,
+
+            # --- Bounds --- #
+            'bound_l'   : bound_l,
+            'bound_m'   : bound_m,
+            'bound_h'   : bound_h,
+
+            # --- Factor --- #
+            'alpha0'       : alpha0,
 
             # --- Simulation --- #
             'nt'        : nt,
@@ -694,12 +702,8 @@ def sw_nucleo(
                 # 'vc_distrib'   : vc_distrib,
 
                 # --- Fits --- #
-                'alpha0'       : alpha0,
                 'xt_over_t'    : xt_over_t,
                 'G'            : G,
-                'bound_low'    : bound_low,
-                'bound_high'   : bound_high,
-                'lb'           : lb
 
             })
 

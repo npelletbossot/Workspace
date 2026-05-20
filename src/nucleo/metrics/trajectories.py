@@ -62,8 +62,8 @@ def clc_results(
     results: np.ndarray,
     dt: float,
     alpha_0: float,
-    lb: int,
-    ub: int = 100
+    bound_l: int,
+    bound_m: int
 ) -> tuple:
     """
     Calculate main statistics and derived results for a matrix of trajectories.
@@ -106,10 +106,10 @@ def clc_results(
     else:
         raise ValueError(f"results must be 1D or 2D, got shape {results.shape}")
     
-    lb_idx = int(lb / 100.0 * n_pts)
-    ub_idx = int(ub / 100.0 * n_pts)
+    lb_idx = int(bound_l / 100.0 * n_pts)
+    mb_idx = int(bound_m / 100.0 * n_pts)
 
-    v_mean = linear_fit(mean_results[lb_idx:ub_idx], dt) * alpha_0
-    v_med  = linear_fit(med_results[lb_idx:ub_idx], dt) * alpha_0
+    v_mean = linear_fit(mean_results[lb_idx:mb_idx], dt) * alpha_0
+    v_med  = linear_fit(med_results[lb_idx:mb_idx], dt) * alpha_0
 
     return mean_results, med_results, std_results, v_mean, v_med

@@ -212,7 +212,7 @@ def choose_configuration(config: str) -> dict:
         "formalism": {**FORMALISMS['alg2_passive_full']},
         "geometry": {
             "land": np.array(['homogen', 'periodic', 'random']),
-            "s": np.array([0], dtype=int),
+            "s": np.array([35], dtype=int),
             "l": np.array([10], dtype=int),
             "bpmin": np.array([0], dtype=int)
         },
@@ -402,7 +402,7 @@ def choose_configuration(config: str) -> dict:
             **TEST__BASE,
             "probas": {
                 **TEST__BASE["probas"],
-                "alphac": np.array([1.00], dtype=float),
+                "alphac": np.array([0.60], dtype=float),
             },
             "rates": {
                 **TEST__BASE["rates"],

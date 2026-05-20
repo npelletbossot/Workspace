@@ -93,7 +93,7 @@ def filtering_before_fit(
         return None
 
 
-def fitting_in_two_steps(times, positions, deviations, bound_low=5, bound_high=80):
+def fitting_in_two_steps(times, positions, deviations, bound_low, bound_mid, bound_high):
     """
     Perform a two-step fit on trajectory data: 
     - a linear fit on x(t)/t for early-time behavior,
@@ -108,7 +108,6 @@ def fitting_in_two_steps(times, positions, deviations, bound_low=5, bound_high=8
         deviations (np.ndarray): Array of standard deviations.
         bound_low (int): Number of initial points to use for the linear average.
         bound_high (int): Starting index for the power-law log-log fit.
-        epsilon (float): Small value to avoid log(0).
         rf (int): Rounding factor for the returned values.
 
     Returns:
@@ -127,6 +126,7 @@ def fitting_in_two_steps(times, positions, deviations, bound_low=5, bound_high=8
     # Getting the filter points in %
     n_pts = len(times)
     lb_idx = int(bound_low / 100 * n_pts)
+    mb_idx = int(bound_mid / 100 * n_pts)
     ub_idx = int(bound_high / 100 * n_pts)
 
     # Remove the first point to avoid (0, 0)
@@ -139,7 +139,7 @@ def fitting_in_two_steps(times, positions, deviations, bound_low=5, bound_high=8
 
     # Step 1: linear average of x(t)/t over early time
     xt_over_t = np.divide(positions, times)
-    array_low = xt_over_t[:lb_idx]
+    array_low = xt_over_t[lb_idx:mb_idx]
     vf = np.mean(array_low)
     vf_std = np.std(array_low)
 
@@ -164,5 +164,5 @@ def fitting_in_two_steps(times, positions, deviations, bound_low=5, bound_high=8
     return (
         vf, Cf, wf,
         vf_std, Cf_std, wf_std,
-        xt_over_t, G, bound_low, bound_high
+        xt_over_t, G
     )
