@@ -250,6 +250,7 @@ def sw_nucleo(
     krel: float, Kp: float, Kz: float,
     Lmin: int, Lmax: int, bps: int, origin: int,
     tmax: float, dt: float,
+    bound_l: int, bound_m: int, bound_h: int,
     nt: int, path: str,
     data_return: bool = False, total_return: bool = False
     ) -> None:
@@ -322,13 +323,12 @@ def sw_nucleo(
     t_bins  = np.arange(t_fb, t_lb, t_bw)
     binx    = int(1e+0) 
     bint    = int(1e+1)
-    bound_l = int(10)   # vf : 10 - 20
-    bound_m = int(20)   # v_mean : 20 - 90
-    bound_h = int(90)   # wf : 90 - 100
 
 
     # ------------------- Tests ------------------- #
-    # print(f"dt = {dt}")
+    print(f"bound_l = {bound_l}")
+    print(f"bound_m = {bound_m}")
+    print(f"bound_h = {bound_h}")
 
 
     # ------------------- Input 1 : Chromatin ------------------- #
@@ -794,6 +794,7 @@ def process_run(params: dict, formalism: dict, chromatin: dict, time: dict, meta
         
         chromatin["Lmin"], chromatin["Lmax"], chromatin["bps"], chromatin["origin"],
         time["tmax"], time["dt"],
+        formalism["bound_l"], formalism["bound_m"], formalism["bound_h"],
 
         meta["nt"], meta["path"], 
         meta["data_return"], meta["total_return"]

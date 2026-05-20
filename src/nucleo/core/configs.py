@@ -31,60 +31,73 @@ def choose_configuration(config: str) -> dict:
         "project_name": "nucleo"
     }
     
-    FORMALISMS = {
-        # one_step
-        "alg1": {
-            "algo": "1S",
-            "dstr": False,
-            "fact": False,
-            "mode": "none",
-        },
-        
-        # one_step + destruction
-        "alg1_destroy": {
-            "algo": "1S",
-            "dstr": True,
-            "fact": False,
-            "mode": "none",
-        },
-        
-        # two steps
-        "alg2": {
-            "algo": "2S",
-            "dstr": False,
-            "fact": False,
-            "mode": "none",
-        },
-        
-        # two_steps + fact passive
-        "alg2_passive_full": {
-            "algo": "2S",
-            "dstr": False,
-            "fact": True,
-            "mode": "passfull",
-        },
-        "alg2_passive_memory": {
-            "algo": "2S",
-            "dstr": False,
-            "fact": True,
-            "mode": "passmemo",
-        },
-        
-        # two_steps + fact active
-        "alg2_active_full": {
-            "algo": "2S",
-            "dstr": False,
-            "fact": True,
-            "mode": "actifull",
-        },
-        "alg2_active_memory": {
-            "algo": "2S",
-            "dstr": False,
-            "fact": True,
-            "mode": "actimemo",
-        },
-        
+    BASE_1S = {
+        "algo": "1S",
+        "bound_l": 0,
+        "bound_m": 5,
+        "bound_h": 95,
     }
+
+    BASE_2S = {
+        "algo": "2S",
+        "bound_l": 10,
+        "bound_m": 20,
+        "bound_h": 90,
+    }
+
+    FORMALISMS = {}
+
+    # ---------- 1 step ----------
+    BASE_1S = {
+        "algo": "1S",
+        "bound_l": 0,
+        "bound_m": 5,
+        "bound_h": 95,
+    }
+
+    FORMALISMS["alg1"] = {
+        **BASE_1S,
+        "dstr": False,
+        "fact": False,
+        "mode": "none",
+    }
+
+    FORMALISMS["alg1_destroy"] = {
+        **BASE_1S,
+        "dstr": True,
+        "fact": False,
+        "mode": "none",
+    }
+
+    # ---------- 2 steps ----------
+    BASE_2S = {
+        "algo": "2S",
+        "bound_l": 10,
+        "bound_m": 20,
+        "bound_h": 90,
+    }
+
+    FORMALISMS["alg2"] = {
+        **BASE_2S,
+        "dstr": False,
+        "fact": False,
+        "mode": "none",
+    }
+
+    MODES = {
+        "passive_full": "passfull",
+        "passive_memory": "passmemo",
+        "active_full": "actifull",
+        "active_memory": "actimemo",
+    }
+
+    for name, mode in MODES.items():
+        FORMALISMS[f"alg2_{name}"] = {
+            **BASE_2S,
+            "dstr": False,
+            "fact": True,
+            "mode": mode,
+        }
 
     CHROMATIN = {
         "Lmin": 0,          # First point of chromatin (included !)
