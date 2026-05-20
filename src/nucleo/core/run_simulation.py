@@ -326,9 +326,9 @@ def sw_nucleo(
 
 
     # ------------------- Tests ------------------- #
-    print(f"bound_l = {bound_l}")
-    print(f"bound_m = {bound_m}")
-    print(f"bound_h = {bound_h}")
+    # print(f"bound_l = {bound_l}")
+    # print(f"bound_m = {bound_m}")
+    # print(f"bound_h = {bound_h}")
 
 
     # ------------------- Input 1 : Chromatin ------------------- #
