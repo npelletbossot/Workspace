@@ -83,7 +83,6 @@ def finding_one_parquet(root: str, params: dict) -> pl.DataFrame:
         if p.name not in {"ncl_output.parquet", "merged.parquet"}
     ]
     df_check = pl.scan_parquet(paths[0]).collect()
-    print(df_check.columns)
 
     if not paths:
         raise FileNotFoundError("No parquet files found.")
@@ -107,7 +106,7 @@ def finding_one_parquet(root: str, params: dict) -> pl.DataFrame:
     if df.height == 0:
         raise ValueError("No dataframe found with the given parameters.")
     else:
-        print(f"Found in : {df['source_file'].unique().to_list()}")
+        # print(f"Found in : {df['source_file'].unique().to_list()}")
         df = df.drop("source_file")
     return df
 
