@@ -173,7 +173,7 @@ def getting_and_ordering_configurations(data_frame, scenario_path = Path.home() 
     df = data_frame
     filtered_combinations = df.filter(
         ~(
-            ((pl.col("landscape") == 'periodic') | (pl.col("landscape") == 'homogeneous')) &
+            ((pl.col("land") == 'periodic') | (pl.col("land") == 'homogen')) &
             (pl.col("bpmin") == 5)
 
             # ((pl.col("alpha_choice") == 'periodic') | (pl.col("alpha_choice") == 'constant_mean')) &
@@ -181,13 +181,13 @@ def getting_and_ordering_configurations(data_frame, scenario_path = Path.home() 
         )
     )
 
-    # Getting the unique combinations of 's', 'l', 'bpmin' and 'landscape'
-    unique_combinations = filtered_combinations.select(['s', 'l', 'bpmin', 'landscape']).unique()
+    # Getting the unique combinations of 's', 'l', 'bpmin' and 'land'
+    unique_combinations = filtered_combinations.select(['s', 'l', 'bpmin', 'land']).unique()
 
-    # Ordering it by landscape in priority
-    alpha_order = pl.when(pl.col("landscape") == 'homogeneous').then(1)\
-                    .when(pl.col("landscape") == 'periodic').then(2)\
-                    .when(pl.col("landscape") == 'random').then(3)\
+    # Ordering it by land in priority
+    alpha_order = pl.when(pl.col("land") == 'homogeneous').then(1)\
+                    .when(pl.col("land") == 'periodic').then(2)\
+                    .when(pl.col("land") == 'random').then(3)\
                     .otherwise(4)
     # alpha_order = pl.when(pl.col("alpha_choice") == 'constant_mean').then(1)\
     #                 .when(pl.col("alpha_choice") == 'periodic').then(2)\
@@ -206,7 +206,7 @@ def getting_and_ordering_configurations(data_frame, scenario_path = Path.home() 
     # Convertiing it into a list of dict
     sorted_combinations_configs = sorted_combinations.rows()
     sorted_combinations_configs = [
-        {"s": row[0], "l": row[1], "bpmin": row[2], "landscape": row[3]} 
+        {"s": row[0], "l": row[1], "bpmin": row[2], "land": row[3]} 
         for row in sorted_combinations_configs
     ]
 
@@ -250,7 +250,7 @@ def compute_heatmap_data(df: pl.DataFrame, config_list: list, speed_cols: list, 
             (pl.col('s') == config['s']) &
             (pl.col('l') == config['l']) &
             (pl.col('bpmin') == config['bpmin']) &
-            (pl.col('landscape') == config['landscape'])
+            (pl.col('land') == config['land'])
         )
 
         if df_filtered.is_empty():
@@ -338,7 +338,7 @@ def compute_heatmap_data_fast(df, config_list, speed_cols, root):
             (pl.col("s") == config["s"]) &
             (pl.col("l") == config["l"]) &
             (pl.col("bpmin") == config["bpmin"]) &
-            (pl.col("landscape") == config["landscape"])
+            (pl.col("land") == config["land"])
         )
 
         if df_f.is_empty():
@@ -464,7 +464,9 @@ def compute_heatmap_data_fast(df, config_list, speed_cols, root):
 # ─────────────────────────────────────────────
 
 # 3.0 : Root
-root = Path.home() / "Documents" / "Workspace" / "nucleo" / "PSMN" / "outputs" / "2026-03-09__PSMN"
+# root = Path("/home/nicolas/Documents/Workspace/nucleo/outputs/NUCLEO__PSMN__2026-05-01")
+# root = Path("/home/nicolas/Documents/Workspace/nucleo/outputs/COMPACTION__PSMN__2026-04-30")
+root = Path("/home/nicolas/Documents/Workspace/nucleo/outputs/FACT__PSMN__2026-05-21")
 root_parquet = root / "ncl_output.parquet"
 
 # # 3.1 : Merging
@@ -476,7 +478,7 @@ print('\nConfigurations :')
 sorted_combinations_configs = getting_and_ordering_configurations(merged_df, root)
 
 # 3.3 : Comuting heatmaps
-speed_columns = ['v_mean', 'vi_med', 'vi_mp', 'vf', 'Cf', 'wf']
+speed_columns = ['v_mean', 'vi_med', 'vi_mp', 'vf', 'wf']
 compute_heatmap_data_fast(merged_df, sorted_combinations_configs, speed_columns, root)
 print("Heatmaps computed")
 

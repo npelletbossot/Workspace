@@ -503,7 +503,7 @@ def plot_single_heatmap(
     # Labels
     # ─────────────────────────────────────────────
 
-    ax.set_title("Simulation")
+    ax.set_title(f"{speed_col}")
     ax.set_xlabel("$\\mu(\\sigma)$")
     ax.set_ylabel("$\\theta(\\sigma)$")
 
@@ -522,11 +522,11 @@ def plot_all_heatmaps(speed_cols, root = Path.home() / "Documents" / "Workspace"
         title_bar_mini = "log₂ ("
     else:
         title_bar_mini = ""
-
+    
     if type_of_data not in ["raw", "norm_mu", "norm_th"]:
-        raise ValueError ("No such type_of_data possible to plot.")
+        raise ValueError(f"type_of_data not in : ['raw', 'norm_mu', 'norm_th'] got {type_of_data}")
 
-    if type_of_data == "raw":
+    elif type_of_data == "raw":
         main_file_path = root / "ncl_hm_raw.pkl"
         title_bar = title_bar_mini + "v"
         if plot_log2:
@@ -623,7 +623,7 @@ def plot_all_heatmaps(speed_cols, root = Path.home() / "Documents" / "Workspace"
 
             # ax.set_title(f"{alpha_choice} : s={config['s']} l={config['l']} bpmin={config['bpmin']}")
 
-            ax.set_title("Simulation")
+            ax.set_title(f"{speed_col}")
             ax.set_xlabel("$\\mu(\\sigma)$")
             ax.set_ylabel("$\\theta(\\sigma)$")
 
