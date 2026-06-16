@@ -466,7 +466,7 @@ def choose_configuration(config: str) -> dict:
             },
             "probas": {
                 **ONESTEP__BASE["probas"],
-                "mu": np.array([160]),
+                "mu": np.array([160, 240]),
                 "theta": np.array([20, 200]),
             },
             "meta": {
@@ -479,14 +479,14 @@ def choose_configuration(config: str) -> dict:
         "FIGURE_3": {
             **ONESTEP__BASE,
             "geometry": {
-                "land": np.array(['homogen']),
+                "land": np.array(['random']),
                 "s": np.array([150], dtype=int),
                 "l": np.array([10], dtype=int),
                 "bpmin": np.array([0], dtype=int)
             },
             "probas": {
                 **ONESTEP__BASE["probas"],
-                "mu": np.array([160]),
+                "mu": np.array([160, 240]),
                 "theta": np.array([20, 200]),
             },
             "meta": {

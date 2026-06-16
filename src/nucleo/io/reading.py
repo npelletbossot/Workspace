@@ -216,7 +216,7 @@ def getting_main_file_with_verifications(
     """
 
     selected_columns = {
-        "alpha_choice", "s", "l", "bpmin", 
+        "land", "s", "l", "bpmin", 
         "mu", "theta", 
         "nt", "tmax", "dt", "times", 
         "alphao", "alphaf", "beta",
@@ -265,7 +265,7 @@ def reading_heatmap_one_config(
     Reads heatmap data for one specific configuration.
 
     Args:
-        config (dict): must contain 's', 'l', 'bpmin', 'alpha_choice' or 'land'
+        config (dict): must contain 's', 'l', 'bpmin', 'land' or 'land'
         data_type (str): one of ["full_data", "heatmap_raw", "heatmap_mu", "heatmap_th"]
         root (Path): directory containing parquet + heatmap pickle files
 
@@ -335,7 +335,7 @@ def reading_heatmap_one_config(
     for _, cfg_data in computed_data.items():
         cfg = cfg_data["config"]
 
-        alpha = cfg.get("land", cfg.get("alpha_choice", "unknown"))
+        alpha = cfg.get("land", cfg.get("land", "unknown"))
         s = cfg["s"]
         l = cfg["l"]
         bpmin = cfg["bpmin"]
@@ -349,7 +349,7 @@ def reading_heatmap_one_config(
     # 5 : Build configuration key
     # ─────────────────────────────────────────────
 
-    key_alpha = config.get("land", config.get("alpha_choice", "unknown"))
+    key_alpha = config.get("land", config.get("land", "unknown"))
     my_key = f"s{config['s']}_l{config['l']}_bp{config['bpmin']}_{key_alpha}"
 
     if my_key not in computed_data:

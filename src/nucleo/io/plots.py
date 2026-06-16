@@ -503,7 +503,10 @@ def plot_single_heatmap(
     # Labels
     # ─────────────────────────────────────────────
 
-    ax.set_title(f"{speed_col}")
+    if speed_col == "vf":
+        ax.set_title("v_init")
+    else:
+        ax.set_title(f"{speed_col}")
     ax.set_xlabel("$\\mu(\\sigma)$")
     ax.set_ylabel("$\\theta(\\sigma)$")
 
@@ -613,17 +616,12 @@ def plot_all_heatmaps(speed_cols, root = Path.home() / "Documents" / "Workspace"
                 ax.clabel(cs, inline=True, fontsize=10, fmt="%.1f")
 
 
-            # alpha_choice = config['alpha_choice']
-            # if alpha_choice == "nt_random":
-            #     alpha_choice = "Random"
-            # elif alpha_choice == "periodic":
-            #     alpha_choice = "Periodic"
-            # elif alpha_choice == "constant_mean":
-            #     alpha_choice = "Homogeneous"
+            land = config['land']
 
-            # ax.set_title(f"{alpha_choice} : s={config['s']} l={config['l']} bpmin={config['bpmin']}")
-
-            ax.set_title(f"{speed_col}")
+            if speed_col == "vf":
+                ax.set_title(f"v_init ") #  + f"{land} : s={config['s']} l={config['l']} bpmin={config['bpmin']}")
+            else:
+                ax.set_title(f"{speed_col}") # + f"{land} : s={config['s']} l={config['l']} bpmin={config['bpmin']}")
             ax.set_xlabel("$\\mu(\\sigma)$")
             ax.set_ylabel("$\\theta(\\sigma)$")
 
