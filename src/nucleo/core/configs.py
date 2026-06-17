@@ -292,9 +292,9 @@ def choose_configuration(config: str) -> dict:
         "LSLOW": {
             **ONESTEP__BASE,
             "geometry": {
-                "land": np.array(['random']),
+                "land": np.array(['periodic', 'random']),
                 "s": np.array([150], dtype=int),
-                "l": np.array([5, 15, 20, 25], dtype=int),
+                "l": np.array([5, 10, 15, 20, 25], dtype=int),
                 "bpmin": np.array([0], dtype=int)
             },
             "meta": {
@@ -306,7 +306,7 @@ def choose_configuration(config: str) -> dict:
         "LSHIGH": {
             **ONESTEP__BASE,
             "geometry": {
-                "land": np.array(['random']),
+                "land": np.array(['periodic', 'random']),
                 "s": np.array([150], dtype=int),
                 "l": np.array([50, 100, 150], dtype=int),
                 "bpmin": np.array([0], dtype=int)
