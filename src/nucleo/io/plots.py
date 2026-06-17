@@ -397,7 +397,8 @@ def plot_single_heatmap(
     plot_log2,
     vmin,
     vmax,
-    title_bar
+    title_bar,
+    dashed_line=True
 ):
     """
     Plot a single heatmap inside a given axis.
@@ -485,19 +486,21 @@ def plot_single_heatmap(
 
         vmp_th = (MU - (THETA**2) / MU) / (l + s)
 
-        levels = [1, 2, 3]
+        if dashed_line:
 
-        cs = ax.contour(
-            mu_values,
-            theta_values,
-            vmp_th,
-            levels=levels,
-            colors="black",
-            linestyles="dotted",
-            linewidths=1.5
-        )
+            levels = [1, 2, 3]
 
-        ax.clabel(cs, inline=True, fontsize=10, fmt="%.1f")
+            cs = ax.contour(
+                mu_values,
+                theta_values,
+                vmp_th,
+                levels=levels,
+                colors="black",
+                linestyles="dotted",
+                linewidths=1.5
+            )
+
+            ax.clabel(cs, inline=True, fontsize=10, fmt="%.1f")
 
     # ─────────────────────────────────────────────
     # Labels
