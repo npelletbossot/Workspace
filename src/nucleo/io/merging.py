@@ -464,8 +464,8 @@ def compute_heatmap_data_fast(df, config_list, speed_cols, root):
 # ─────────────────────────────────────────────
 
 # 3.0 : Root
-# root = Path("/home/nicolas/Documents/Workspace/nucleo/outputs/NUCLEO__PSMN__2026-05-01")
-root = Path("/home/nicolas/Documents/Workspace/nucleo/outputs/FACT__PSMN__2026-05-21")
+root = Path("/home/nicolas/Documents/Workspace/nucleo/outputs/NUCLEO__PSMN__2026-06-19")
+# root = Path("/home/nicolas/Documents/Workspace/nucleo/outputs/FACT__PSMN__2026-05-21")
 root_parquet = root / "ncl_output.parquet"
 
 # # 3.1 : Merging

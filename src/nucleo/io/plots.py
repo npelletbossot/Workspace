@@ -48,6 +48,7 @@ def plot_single_heatmap(
     type_of_data="raw",
     plot_log2=False,
     dashed_line=True,
+    title=True
 ):
     """
     Plot a single heatmap inside a given axis.
@@ -223,7 +224,8 @@ def plot_single_heatmap(
     # Labels
     # ─────────────────────────────────────────────
 
-    # ax.set_title(speed_col_label(speed_col))
+    if title:
+        ax.set_title(f"{config}")
     ax.set_xlabel("$\\mu(\\sigma)$")
     ax.set_ylabel("$\\theta(\\sigma)$")
 
