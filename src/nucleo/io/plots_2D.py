@@ -9,22 +9,18 @@ Plot functions for writing results, etc.
 # 1 : Librairies
 # ─────────────────────────────────────────────
 
+import polars as pl
 import numpy as np
 import matplotlib.pyplot as plt
 
 from pathlib import Path
-import pickle
 from tqdm import tqdm
 
 
 # ─────────────────────────────────────────────
-# 2 : Functions : 1D Plots
+# 2 : Functions
 # ─────────────────────────────────────────────
 
-
-# ─────────────────────────────────────────────────────────────────────────
-# Labels LaTeX pour chaque speed_col (titre des subplots)
-# ─────────────────────────────────────────────────────────────────────────
 
 SPEED_COL_LABELS = {
     "vf": r"$v_{init}$",
@@ -148,16 +144,9 @@ def plot_single_heatmap(
 
         cmap = "bwr"
 
-        # Les nan déjà présents dans `data` AVANT le log2 = points non
-        # simulés / donnée absente. On les retient ici pour pouvoir les
-        # distinguer plus bas des inf/nan qui apparaissent À CAUSE du log2
-        # (valeur nulle, négative, ou juste très petite/grande).
         missing_mask = np.isnan(np.asarray(data, dtype=float))
 
         if plot_log2:
-            # np.errstate pour ne pas spammer la console avec les
-            # RuntimeWarning de log2(0) et log2(négatif), qu'on gère
-            # explicitement juste après.
             with np.errstate(divide="ignore", invalid="ignore"):
                 data_to_plot = np.log2(data, dtype=float)
         else:
@@ -166,18 +155,10 @@ def plot_single_heatmap(
         # ─────────────────────────────────────────────
         # Gestion des valeurs divergentes (points blancs)
         # ─────────────────────────────────────────────
-        # log2(0) -> -inf, log2(négatif) -> nan. pcolormesh affiche en blanc
-        # tout ce qui sort de [vmin, vmax] OU qui est nan/inf -- on clippe
-        # donc explicitement aux bornes : les valeurs très petites
-        # (log2 -> -inf) sont rabattues à vmin (couleur extrême "froide" de
-        # la bwr), pas mises à 0 qui n'a pas de sens particulier ici.
         data_to_plot = np.nan_to_num(data_to_plot, nan=vmin, posinf=vmax, neginf=vmin)
         data_to_plot = np.clip(data_to_plot, vmin, vmax)
 
-        # Les vrais points manquants (nan d'origine, donnée absente) sont
-        # forcés à vmin pour être colorés en bleu plutôt qu'en blanc, comme
-        # demandé -- contrairement aux divergences du log2 ci-dessus, ce
-        # n'est pas un effet de bord du clip mais un choix explicite ici.
+
         data_to_plot[missing_mask] = vmin
 
         c = ax.pcolormesh(
@@ -232,6 +213,112 @@ def plot_single_heatmap(
     return c
 
 
+
+def get_heatmap_matrix(heatmaps_df, config_idx, speed_col, value_col="value_raw"):
+    """
+    Repivote une sous-partie du DataFrame long (issu de compute_heatmap_data_df)
+    en matrice 2D (theta x mu).
+
+    Ne fait QUE de l'extraction / pivot. Aucune logique de plotting ici --
+    c'est le seul endroit où le DataFrame est lu, pour que plot_single_heatmap
+    et plot_all_heatmaps n'aient jamais à connaître le format du parquet.
+
+    Args:
+        heatmaps_df (pl.DataFrame): le DataFrame long (lu depuis ncl_heatmaps.parquet)
+        config_idx (int): index de la configuration voulue
+        speed_col (str): colonne de vitesse voulue ('v_mean', 'wf', ...)
+        value_col (str): "value_raw", "value_norm_mu" ou "value_norm_th"
+
+    Returns:
+        Z (np.ndarray): matrice theta x mu
+        theta_values (np.ndarray)
+        mu_values (np.ndarray)
+        config (dict): metadata de la config (s, l, bpmin, land)
+    """
+    sub = heatmaps_df.filter(
+        (pl.col("config_idx") == config_idx) & (pl.col("speed_col") == speed_col)
+    )
+
+    if sub.is_empty():
+        raise ValueError(f"Pas de données pour config_idx={config_idx}, speed_col={speed_col}")
+
+    pivot = sub.pivot(index="theta", on="mu", values=value_col).sort("theta")
+
+    theta_values = pivot["theta"].to_numpy()
+    mu_values = np.array([float(c) for c in pivot.columns if c != "theta"])
+    Z = pivot.drop("theta").to_numpy()
+
+    row0 = sub.row(0, named=True)
+    config = {"s": row0["s"], "l": row0["l"], "bpmin": row0["bpmin"], "land": row0["land"]}
+
+    return Z, theta_values, mu_values, config
+
+
+def _value_col_from_type(type_of_data):
+    if type_of_data not in ["raw", "norm_mu", "norm_th"]:
+        raise ValueError(f"type_of_data not in : ['raw', 'norm_mu', 'norm_th'] got {type_of_data}")
+    return f"value_{type_of_data}"
+
+
+
+def plot_one_heatmap_from_df(
+    heatmaps_df,
+    config_idx,
+    speed_col,
+    ax=None,
+    type_of_data="raw",
+    plot_log2=False,
+    dashed_line=True,
+    title=True,
+):
+    """
+    Plot UNE heatmap (une config, un speed_col) à partir du DataFrame long.
+
+    C'est la seule fonction qui fait le pont entre le format DataFrame et
+    plot_single_heatmap : elle extrait la matrice via get_heatmap_matrix,
+    puis appelle plot_single_heatmap avec les bons arguments. Aussi bien
+    plot_all_heatmaps que l'usage "une seule heatmap" passent par ici --
+    donc toute la logique d'affichage (vmin/vmax/cmap/etc.) reste à un seul
+    endroit, dans plot_single_heatmap.
+
+    Args:
+        heatmaps_df (pl.DataFrame): DataFrame long, lu depuis ncl_heatmaps.parquet
+        config_idx (int): index de la config voulue
+        speed_col (str): colonne de vitesse voulue
+        ax (plt.Axes | None): axe sur lequel dessiner ; si None, en crée un
+        type_of_data ("raw" | "norm_mu" | "norm_th")
+        plot_log2 (bool)
+        dashed_line (bool)
+        title (bool)
+
+    Returns:
+        ax (plt.Axes), c (le mappable retourné par pcolormesh, pour colorbar manuelle si besoin)
+    """
+    value_col = _value_col_from_type(type_of_data)
+
+    Z, theta_values, mu_values, config = get_heatmap_matrix(
+        heatmaps_df, config_idx=config_idx, speed_col=speed_col, value_col=value_col
+    )
+
+    if ax is None:
+        _, ax = plt.subplots(figsize=(6, 5), dpi=150)
+
+    c = plot_single_heatmap(
+        ax=ax,
+        mu_values=mu_values,
+        theta_values=theta_values,
+        data=Z,
+        speed_col=speed_col,
+        config=config,
+        type_of_data=type_of_data,
+        plot_log2=plot_log2,
+        dashed_line=dashed_line,
+        title=title,
+    )
+
+    return ax, c
+
+
 def plot_all_heatmaps(
     speed_cols,
     root=Path.home() / "Documents" / "Workspace" / "nucleo" / "outputs" / "2025-01-01_PSMN",
@@ -244,47 +331,29 @@ def plot_all_heatmaps(
     - log2 + bwr for all except wf
     - linear + jet for wf
 
-    Data are already normalized by the theoretical values of the constant_value scenario !
-
-    Ne fait que charger les données et boucler sur plot_single_heatmap, qui
-    porte toute la logique de style (vmin/vmax/cmap/titre/ligne théorique).
+    Ne fait QUE charger le parquet, créer la grille d'axes, et boucler en
+    appelant plot_one_heatmap_from_df pour chaque (config, speed_col).
+    Toute la logique de style et toute la logique d'extraction vivent
+    ailleurs (plot_single_heatmap et get_heatmap_matrix respectivement) --
+    cette fonction n'est qu'un orchestrateur.
     """
+    _value_col_from_type(type_of_data)  # valide type_of_data tôt
 
-    if type_of_data not in ["raw", "norm_mu", "norm_th"]:
-        raise ValueError(f"type_of_data not in : ['raw', 'norm_mu', 'norm_th'] got {type_of_data}")
+    heatmaps_df = pl.read_parquet(Path(root) / "ncl_heatmaps.parquet")
 
-    elif type_of_data == "raw":
-        main_file_path = root / "ncl_hm_raw.pkl"
+    config_indices = sorted(heatmaps_df["config_idx"].unique().to_list())
+    n_combinations = len(config_indices)
 
-    elif type_of_data == "norm_mu":
-        main_file_path = root / "ncl_hm_nmu.pkl"
-
-    elif type_of_data == "norm_th":
-        main_file_path = root / "ncl_hm_nth.pkl"
-
-    with open(main_file_path, "rb") as f:
-        computed_data = pickle.load(f)
-
-    n_combinations = len(computed_data)
     fig, axes = plt.subplots(nrows=n_combinations, ncols=len(speed_cols), figsize=(18, 4 * n_combinations), dpi=400)
     axes = np.atleast_2d(axes)
 
-    for idx, (key, config_data) in enumerate(tqdm(computed_data.items(), total=n_combinations, desc="Plotting heatmaps")):
-        mu_values = config_data["mu_values"]
-        theta_values = config_data["theta_values"]
-        config = config_data["config"]
-
+    for row_idx, config_idx in enumerate(tqdm(config_indices, desc="Plotting heatmaps")):
         for col_idx, speed_col in enumerate(speed_cols):
-            ax = axes[idx, col_idx]
-            data = config_data[speed_col]
-
-            plot_single_heatmap(
-                ax=ax,
-                mu_values=mu_values,
-                theta_values=theta_values,
-                data=data,
+            plot_one_heatmap_from_df(
+                heatmaps_df,
+                config_idx=config_idx,
                 speed_col=speed_col,
-                config=config,
+                ax=axes[row_idx, col_idx],
                 type_of_data=type_of_data,
                 plot_log2=plot_log2,
                 dashed_line=dashed_line,

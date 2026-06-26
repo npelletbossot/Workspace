@@ -84,52 +84,6 @@ def merging_parquet_files(root_directory: str = Path.home() / "Documents" / "Wor
     return merged_df
 
 
-def read_parquet_safe(path):
-    """
-    Reads a parquet file and keeps only numeric, boolean, or string columns.
-    Returns None on error.
-    """
-    try:
-        df = pl.read_parquet(path)
-        df = df.select(cs.numeric() | cs.boolean() | cs.string())
-        return df
-    except Exception as e:
-        print(f"Error reading {path}: {e}")
-        return None
-
-
-def merging_parquet_files_parallel(root_directory: str, output_name="ncl_output.parquet", n_workers=10):
-
-    ask_confirmation_input()
-
-    root_directory = Path(root_directory)
-
-    # Recursively find all parquet files
-    parquet_files = [f for f in root_directory.rglob("*.parquet") if "data" in f.name]
-    print(f"Found {len(parquet_files)} parquet files to merge.")
-
-    dataframes = []
-    with ProcessPoolExecutor(max_workers=n_workers) as executor:
-        futures = {executor.submit(read_parquet_safe, f): f for f in parquet_files}
-
-        for future in tqdm(as_completed(futures), total=len(futures), desc="Reading parquets"):
-            df = future.result()
-            if df is not None:
-                dataframes.append(df)
-
-    if not dataframes:
-        raise RuntimeError("No parquet files loaded!")
-
-    # Concatenate vertically
-    merged_df = pl.concat(dataframes, how="vertical")
-    output_path = root_directory / output_name
-    merged_df.write_parquet(output_path)
-
-    print("Merged file written to:", output_path)
-    print("Total rows:", merged_df.shape[0])
-    return merged_df
-
-
 def merging_parquet_lazy(root_directory, output_name="ncl_output.parquet"):
 
     ask_confirmation_input()
@@ -226,114 +180,29 @@ def getting_and_ordering_configurations(data_frame, scenario_path = Path.home() 
 # 2.4 : From main file to heatmaps
 
 
-def compute_heatmap_data(df: pl.DataFrame, config_list: list, speed_cols: list, root: str) -> dict:
+def compute_heatmap_data_df(df, config_list, speed_cols, root):
     """
-    Computes and stores heatmap data for each configuration and speed column.
-    Linear speeds are getting normalized by the theoretical values of constant_mean scenario.
+    Calcule les données de heatmap pour chaque config / speed_col, et renvoie
+    un DataFrame polars en format LONG (une ligne par point (config, speed_col, theta, mu)).
+
+    Colonnes du DataFrame retourné :
+        config_idx, s, l, bpmin, land, speed_col, theta, mu,
+        value_raw, value_norm_mu, value_norm_th
 
     Args:
-        df (pl.DataFrame): Data containing multiple speed configurations.
-        config_list (list): List of configuration dictionaries.
-        speed_cols (list): List of speed columns to process.
+        df (pl.DataFrame): données fusionnées (issues de merging_parquet_lazy par ex.)
+        config_list (list[dict]): liste des configs (sorted_combinations_configs)
+        speed_cols (list[str]): colonnes de vitesse à traiter
+        root (str | Path): dossier où écrire le parquet de sortie
 
     Returns:
-        dict: Nested dictionary {config_idx -> {speed_col -> heatmap_data, config_metadata}}.
+        pl.DataFrame: le DataFrame en format long, déjà écrit sur disque en parquet
     """
 
-    all_data_raw = {}
-    all_data_norm_mu = {}
-    all_data_norm_th = {}
+    rows = []
 
-    for idx, config in tqdm(enumerate(config_list), total=len(config_list), desc="Computing heatmaps"):
+    for idx, config in tqdm(enumerate(config_list), total=len(config_list), desc="Heatmaps (DF)"):
 
-        df_filtered = df.filter(
-            (pl.col('s') == config['s']) &
-            (pl.col('l') == config['l']) &
-            (pl.col('bpmin') == config['bpmin']) &
-            (pl.col('land') == config['land'])
-        )
-
-        if df_filtered.is_empty():
-            print(f"No data for config {config}")
-            continue
-
-        mu_values = df_filtered['mu'].unique().sort()
-        theta_values = df_filtered['theta'].unique().sort()
-
-        # Store configuration metadata (init both dicts)
-        meta = {
-            "mu_values": mu_values,
-            "theta_values": theta_values,
-            "config": config
-        }
-
-        all_data_raw[idx] = dict(meta)
-        all_data_norm_mu[idx] = dict(meta)
-        all_data_norm_th[idx] = dict(meta)
-
-        # Loop on data
-        for speed_col in speed_cols:
-            heatmap_raw = []
-            heatmap_norm_mu = []
-            heatmap_norm_th = []
-
-            for theta in tqdm(theta_values, desc=f"Processing theta for config {idx}", leave=False):
-                data_raw = []
-                data_norm_mu = []
-                data_norm_th = []
-
-                for mu in mu_values:
-                    values = df_filtered.filter((pl.col('mu') == mu) & (pl.col('theta') == theta))[speed_col].mean()
-                    norm_mu = mu
-                    norm_th = ((df_filtered['alphaf'][0] * df_filtered['l'][0] +
-                                df_filtered['alphao'][0] * df_filtered['s'][0]) /
-                                (df_filtered['l'][0] + df_filtered['s'][0])) * mu
-
-                    if speed_col in {'v_mean', 'vi_med', 'vi_mp', 'vf'}:
-                        data_raw.append(values if values is not None else 0)
-                        data_norm_mu.append(values / norm_mu if values is not None else 0)
-                        data_norm_th.append(values / norm_th if values is not None else 0)
-                       
-                    elif speed_col in {'Cf', 'wf'}:
-                        data_raw.append(values if values is not None else 0)
-                        data_norm_mu.append(values if values is not None else 0)
-                        data_norm_th.append(values if values is not None else 0)
-
-                heatmap_raw.append(data_raw)
-                heatmap_norm_mu.append(data_norm_mu)
-                heatmap_norm_th.append(data_norm_th)
-
-            all_data_raw[idx][speed_col] = np.array(heatmap_raw)
-            all_data_norm_mu[idx][speed_col] = np.array(heatmap_norm_mu)
-            all_data_norm_th[idx][speed_col] = np.array(heatmap_norm_th)
-
-    # Saving datas
-    path_raw  = os.path.join(root, "ncl_hm_raw.pkl")
-    path_norm_mu = os.path.join(root, "ncl_hm_nmu.pkl")
-    path_norm_th = os.path.join(root, "ncl_hm_nth.pkl")
-
-    with open(path_raw, "wb") as f:
-        pickle.dump(all_data_raw, f)
-    with open(path_norm_mu, "wb") as f:
-        pickle.dump(all_data_norm_mu, f)
-    with open(path_norm_th, "wb") as f:
-        pickle.dump(all_data_norm_th, f)
-
-    print("Files written at :", path_raw, "-", path_norm_mu, "-", path_norm_th)
-    return None
-
-
-def compute_heatmap_data_fast(df, config_list, speed_cols, root):
-
-    all_data_raw = {}
-    all_data_norm_mu = {}
-    all_data_norm_th = {}
-
-    for idx, config in tqdm(enumerate(config_list),
-                            total=len(config_list),
-                            desc="Heatmaps (FAST)"):
-
-        # --- Filter config
         df_f = df.filter(
             (pl.col("s") == config["s"]) &
             (pl.col("l") == config["l"]) &
@@ -344,140 +213,110 @@ def compute_heatmap_data_fast(df, config_list, speed_cols, root):
         if df_f.is_empty():
             continue
 
-        # --- Unique sorted axes
         mu_values = (
-            df_f.select("mu")
-            .unique()
-            .sort("mu")
-            .to_series()
-            .to_list()
+            df_f.select("mu").unique().sort("mu").to_series().to_list()
         )
-
         theta_values = (
-            df_f.select("theta")
-            .unique()
-            .sort("theta")
-            .to_series()
-            .to_list()
+            df_f.select("theta").unique().sort("theta").to_series().to_list()
         )
 
-        # --- Theoretical normalization constant
         alphaf = df_f["alphaf"][0]
         alphao = df_f["alphao"][0]
         s = df_f["s"][0]
         l = df_f["l"][0]
-
         prefactor_th = (alphaf * l + alphao * s) / (l + s)
-
-        # --- Metadata
-        meta = {
-            "mu_values": np.array(mu_values),
-            "theta_values": np.array(theta_values),
-            "config": config
-        }
-
-        all_data_raw[idx] = dict(meta)
-        all_data_norm_mu[idx] = dict(meta)
-        all_data_norm_th[idx] = dict(meta)
-
-        # =====================================================
-        # Core: group_by(theta, mu) once for all speed columns
-        # =====================================================
 
         grouped = (
             df_f.group_by(["theta", "mu"])
             .agg([pl.col(c).mean().alias(c) for c in speed_cols])
         )
 
-        # --- Loop speed columns (cheap)
         for speed_col in speed_cols:
 
-            # Pivot => matrix theta × mu
             pivot = grouped.pivot(
                 index="theta",
                 on="mu",
                 values=speed_col,
-                aggregate_function=None
+                aggregate_function=None,
             )
 
-            # Force correct ordering
             mu_cols = [str(m) for m in mu_values]
+            pivot = pivot.sort("theta").select(["theta"] + mu_cols)
 
-            pivot = (
-                pivot.sort("theta")
-                .select(["theta"] + mu_cols)
-            )
-
-
-            # Convert to numpy matrix
             Z = pivot.drop("theta").to_numpy()
             Z = np.nan_to_num(Z, nan=0.0)
 
-            # --- Normalisations
             if speed_col in {"v_mean", "vi_med", "vi_mp", "vf"}:
-
                 MU = np.array(mu_values)[None, :]
                 VTH = prefactor_th * MU
-
-                Z_raw = Z
-                Z_nmu = Z / MU
-                Z_nth = Z / VTH
-
+                Z_raw, Z_nmu, Z_nth = Z, Z / MU, Z / VTH
             else:
-                # Cf, wf : no normalization
-                Z_raw = Z
-                Z_nmu = Z
-                Z_nth = Z
+                Z_raw = Z_nmu = Z_nth = Z
 
-            # Store
-            all_data_raw[idx][speed_col] = Z_raw
-            all_data_norm_mu[idx][speed_col] = Z_nmu
-            all_data_norm_th[idx][speed_col] = Z_nth
+            # On "déplie" la matrice theta x mu en lignes individuelles
+            for i_theta, theta in enumerate(theta_values):
+                for i_mu, mu in enumerate(mu_values):
+                    rows.append({
+                        "config_idx": idx,
+                        "s": config["s"],
+                        "l": config["l"],
+                        "bpmin": config["bpmin"],
+                        "land": config["land"],
+                        "speed_col": speed_col,
+                        "theta": theta,
+                        "mu": mu,
+                        "value_raw": float(Z_raw[i_theta, i_mu]),
+                        "value_norm_mu": float(Z_nmu[i_theta, i_mu]),
+                        "value_norm_th": float(Z_nth[i_theta, i_mu]),
+                    })
 
-    # =====================================================
-    # Save pickle files
-    # =====================================================
+    result_df = pl.DataFrame(rows)
 
-    path_raw = os.path.join(root, "ncl_hm_raw.pkl")
-    path_nmu = os.path.join(root, "ncl_hm_nmu.pkl")
-    path_nth = os.path.join(root, "ncl_hm_nth.pkl")
+    output_path = os.path.join(root, "ncl_heatmaps.parquet")
+    result_df.write_parquet(output_path)
 
-    with open(path_raw, "wb") as f:
-        pickle.dump(all_data_raw, f)
+    print("Heatmaps (format long) écrites dans :", output_path)
+    print("Lignes :", result_df.shape[0])
 
-    with open(path_nmu, "wb") as f:
-        pickle.dump(all_data_norm_mu, f)
+    return result_df
 
-    with open(path_nth, "wb") as f:
-        pickle.dump(all_data_norm_th, f)
 
-    print("Heatmaps written to:")
-    print(" -", path_raw)
-    print(" -", path_nmu)
-    print(" -", path_nth)
+def get_heatmap_matrix(heatmaps_df, config_idx, speed_col, value_col="value_raw"):
+    """
+    Repivote une sous-partie du DataFrame long en matrice 2D (theta x mu) pour le plot.
 
-    return None
+    Args:
+        heatmaps_df (pl.DataFrame): sortie de compute_heatmap_data_df (ou lue depuis le parquet)
+        config_idx (int): index de la configuration voulue
+        speed_col (str): colonne de vitesse voulue
+        value_col (str): "value_raw", "value_norm_mu" ou "value_norm_th"
+
+    Returns:
+        Z (np.ndarray): matrice theta x mu
+        theta_values (np.ndarray)
+        mu_values (np.ndarray)
+    """
+    sub = heatmaps_df.filter(
+        (pl.col("config_idx") == config_idx) & (pl.col("speed_col") == speed_col)
+    )
+
+    pivot = sub.pivot(index="theta", on="mu", values=value_col).sort("theta")
+
+    theta_values = pivot["theta"].to_numpy()
+    mu_values = np.array([float(c) for c in pivot.columns if c != "theta"])
+
+    Z = pivot.drop("theta").to_numpy()
+
+    return Z, theta_values, mu_values
 
 
 # ─────────────────────────────────────────────
 # 3 : Call
 # ─────────────────────────────────────────────
 
-# 3.0 : Root
 root = Path("/home/nicolas/Documents/Workspace/nucleo/outputs/NUCLEO__PSMN__2026-06-19")
-# root = Path("/home/nicolas/Documents/Workspace/nucleo/outputs/FACT__PSMN__2026-05-21")
-root_parquet = root / "ncl_output.parquet"
-
-# # 3.1 : Merging
 merged_df = merging_parquet_lazy(root)
-print(merged_df.head(12))
-
-# 3.2 : Configurations    
-print('\nConfigurations :')
 sorted_combinations_configs = getting_and_ordering_configurations(merged_df, root)
-
-# 3.3 : Comuting heatmaps
 speed_columns = ['v_mean', 'vi_med', 'vi_mp', 'vf', 'wf']
-compute_heatmap_data_fast(merged_df, sorted_combinations_configs, speed_columns, root)
-print("Heatmaps computed")
+heatmaps_df = compute_heatmap_data_df(merged_df, sorted_combinations_configs, speed_columns, root)
 
