@@ -210,6 +210,9 @@ def plot_single_heatmap(
     ax.set_xlabel("$\\mu(\\sigma)$")
     ax.set_ylabel("$\\theta(\\sigma)$")
 
+    ax.set_xticks(np.arange(100,601,100))
+    ax.set_yticks(np.arange(20,101,20))
+
     return c
 
 
