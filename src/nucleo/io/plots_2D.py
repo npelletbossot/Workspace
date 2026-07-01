@@ -171,9 +171,6 @@ def plot_single_heatmap(
             shading="auto"
         )
 
-        cbar = plt.colorbar(c, ax=ax)
-        cbar.set_label(title_bar)
-
         # ─────────────────────────────────────────────
         # Théorie v_mp
         # ─────────────────────────────────────────────
@@ -204,6 +201,9 @@ def plot_single_heatmap(
     # ─────────────────────────────────────────────
     # Labels
     # ─────────────────────────────────────────────
+
+    cbar = plt.colorbar(c, ax=ax)
+    cbar.set_label(title_bar)
 
     if title:
         ax.set_title(f"{config}")
@@ -347,7 +347,7 @@ def plot_all_heatmaps(
     config_indices = sorted(heatmaps_df["config_idx"].unique().to_list())
     n_combinations = len(config_indices)
 
-    fig, axes = plt.subplots(nrows=n_combinations, ncols=len(speed_cols), figsize=(18, 4 * n_combinations), dpi=400)
+    fig, axes = plt.subplots(nrows=n_combinations, ncols=len(speed_cols), figsize=(14, 4 * n_combinations), dpi=400)
     axes = np.atleast_2d(axes)
 
     for row_idx, config_idx in enumerate(tqdm(config_indices, desc="Plotting heatmaps")):
