@@ -79,8 +79,10 @@ def finding_one_parquet(root: str, params: dict) -> pl.DataFrame:
 
     root = Path(root)
     paths = [
-        str(p) for p in root.glob("**/*.parquet")
-        if p.name not in {"ncl_output.parquet", "merged.parquet"}
+        str(p)
+        for d in root.iterdir() if d.is_dir()
+        for p in d.rglob("*.parquet")
+        if p.name not in {"ncl_output.parquet", "ncl_heatmaps.parquet"}
     ]
     df_check = pl.scan_parquet(paths[0]).collect()
 
