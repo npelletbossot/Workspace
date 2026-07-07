@@ -61,7 +61,7 @@ def plot_obs_linker_distrib(s, s_points, s_distrib, l_points, l_distrib, ax=None
     # ax2.set_title('Linker distribution')
     ax1.set_xlabel('Size of linker (a.u.)')
     ax1.set_ylabel('distribution')
-    ax1.set_ylim([-0.10, 0.30])
+    # ax1.set_ylim([-0.10, 0.30])
     ax1.grid(True)
     ax1.legend()
         
@@ -83,7 +83,7 @@ def plot_obs_linker_distrib(s, s_points, s_distrib, l_points, l_distrib, ax=None
 
     # ax1.set_title('Obstacle distribution')
     ax2.set_ylabel('distribution')
-    ax2.set_ylim([-0.10, 1.10])
+    # ax2.set_ylim([-0.10, 1.10])
     ax2.grid(True)
     ax2.legend()
 
@@ -105,7 +105,7 @@ def plot_probabilities(mu, theta, p, ax=None):
     ax.set_title(f'Capture probability')
     ax.plot(p, label=f'mu={mu} - theta={theta}', c='r', lw=2)
     ax.set_xlim([0, 0+1000])
-    ax.set_ylim([-0.005, 0.025])
+    # ax.set_ylim([-0.005, 0.025])
     ax.set_ylabel((r"$p(\Delta x)$"))
     ax.set_xlabel((r"$\Delta x$"))
     ax.grid(True, which='both')
@@ -125,9 +125,9 @@ def plot_trajectories(tmax, times, results, results_mean, results_med, results_s
     ax.set_xlabel(r'time in ($1 / k_0$) unit')
     ax.set_ylabel('x')
     ax.set_xlim([0, tmax])
-    ax.set_ylim([0, 7_000])
+    # ax.set_ylim([0, 7_000])
     ax.grid(True, which='both')
-    ax.legend(loc='upper left')
+    ax.legend(loc='best')
 
 
 # - Fig1. Line 2 - #
@@ -139,8 +139,8 @@ def plot_fpt_distrib_2d(fpt_distrib_2D, tmax, time_bin, ax=None):
     num_bins = fpt_distrib_2D.shape[1]
     x_ticks = np.arange(0, num_bins, step=max(1, num_bins // 10))
     x_labels = x_ticks * time_bin
-    ax.set_xticks(x_ticks)
-    ax.set_xticklabels(x_labels)
+    # ax.set_xticks(x_ticks)
+    # ax.set_xticklabels(x_labels)
     ax.set_xlabel('x (a.u.)')
     ax.set_ylabel('t (a.u.)')
     # ax.set_xlim([0, 10_000])
