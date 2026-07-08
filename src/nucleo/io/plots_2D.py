@@ -439,6 +439,11 @@ def plot_single_heatmap(
     theta_values = np.asarray(theta_values)
     data = np.asarray(data)
 
+    land = config["land"]
+    s = config["s"]
+    l = config["l"]
+    bpmin = config["bpmin"]
+
     # ─────────────────────────────────────────────
     # Safety check on dimensions
     # ─────────────────────────────────────────────
@@ -546,9 +551,6 @@ def plot_single_heatmap(
         # Théorie v_mp
         # ─────────────────────────────────────────────
 
-        s = config["s"]
-        l = config["l"]
-
         MU, THETA = np.meshgrid(mu_values, theta_values)
 
         vmp_th = (MU - (THETA**2) / MU) / (l + s)
@@ -577,7 +579,8 @@ def plot_single_heatmap(
     cbar.set_label(title_bar)
 
     if title:
-        ax.set_title(f"{config}")
+        title_base = f"land = {land} | s = {s} | l = {l} | bpmin = {bpmin}"
+        ax.set_title(f"{title_base}")
     ax.set_xlabel("$\\mu(\\sigma)$")
     ax.set_ylabel("$\\theta(\\sigma)$")
 
