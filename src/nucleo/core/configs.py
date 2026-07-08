@@ -101,7 +101,7 @@ def choose_configuration(config: str) -> dict:
 
     CHROMATIN = {
         "Lmin": 0,          # First point of chromatin (included !)
-        "Lmax": 50_000,     # Last point of chromatin (excluded !)
+        "Lmax": 70_000,     # Last point of chromatin (excluded !)
         "bps": 1,           # Based pair step 1 per 1
         "origin": 10_000    # Falling point of condensin on chromatin 
     }
