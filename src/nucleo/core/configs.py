@@ -137,7 +137,7 @@ def choose_configuration(config: str) -> dict:
     ONESTEP__BASE = {
         "formalism": {**FORMALISMS['alg1']},
         "probas": {
-            "mu": np.arange(100, 605, 5),
+            "mu": np.arange(100, 505, 5),
             "theta": np.arange(1, 101, 1),
             "alphao": np.array([PROBAS["alphao"]], dtype=float),
             "alphaf": np.array([PROBAS["alphaf"]], dtype=float),
