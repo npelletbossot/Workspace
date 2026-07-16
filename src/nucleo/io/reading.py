@@ -193,7 +193,7 @@ def getting_main_file_with_verifications(
     alphaf: float = 1.0,
     beta: float = 0.0,
     Lmin: int = 0,
-    Lmax: int = 50_000,
+    Lmax: int = 70_000,
     origin: int = 10_000,
     bps: int = 1
 ) -> pl.DataFrame:
@@ -229,31 +229,30 @@ def getting_main_file_with_verifications(
         "vi_mean", "vi_med", "vi_mp",
     }
 
-    # Select only the required columns
     filtered_columns = [col for col in df.columns if col in selected_columns]
     filtered_df = df.select(filtered_columns)
 
-    # # Verify that all rows have 's' equal to 150
-    # if (filtered_df["s"] == 150).all():
-    #     print("All rows have s = 150.")
-    # else:
-    #     print("Some rows do not have s = 150.")
-    #     print(filtered_df.filter(pl.col("s") != 150))
+    conditions = {
+        "nt": nt,
+        "tmax": tmax,
+        "dt": dt,
+        "alphaf": alphaf,
+        "alphao": alphao,
+        "beta": beta,
+        "Lmin": Lmin,
+        "Lmax": Lmax,
+        "origin": origin,
+        "bps": bps,
+    }
 
-    # Apply filtering based on predefined conditions
-    filtered_df = (
-        filtered_df
-        .filter(pl.col("nt") == nt)
-        .filter(pl.col("tmax") == tmax)
-        .filter(pl.col("dt") == dt)
-        .filter(pl.col("alphaf") == alphaf)
-        .filter(pl.col("alphao") == alphao)
-        .filter(pl.col("beta") == beta)
-        .filter(pl.col("Lmin") == Lmin)
-        .filter(pl.col("Lmax") == Lmax)
-        .filter(pl.col("origin") == origin)
-        .filter(pl.col("bps") == bps)
-    )
+    for param, value in conditions.items():
+        filtered_df = filtered_df.filter(pl.col(param) == value)
+
+        if filtered_df.is_empty():
+            raise ValueError(
+                f"Aucune simulation trouvée après filtrage sur '{param}' = {value}."
+            )
+
 
     return filtered_df
 
