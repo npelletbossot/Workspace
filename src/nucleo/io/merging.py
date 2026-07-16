@@ -314,7 +314,7 @@ def get_heatmap_matrix(heatmaps_df, config_idx, speed_col, value_col="value_raw"
 # 3 : Call
 # ─────────────────────────────────────────────
 
-root = Path("/home/nicolas/Documents/Workspace/nucleo/outputs/NUCLEO__PSMN__2026-06-19")
+root = Path("/home/nicolas/Documents/Workspace/nucleo/outputs/NUCLEO__PSMN__2026-07-09")
 merged_df = merging_parquet_lazy(root)
 sorted_combinations_configs = getting_and_ordering_configurations(merged_df, root)
 speed_columns = ['v_mean', 'vi_med', 'vi_mp', 'vf', 'wf']
