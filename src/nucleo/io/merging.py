@@ -320,3 +320,4 @@ sorted_combinations_configs = getting_and_ordering_configurations(merged_df, roo
 speed_columns = ['v_mean', 'vi_med', 'vi_mp', 'vf', 'wf']
 heatmaps_df = compute_heatmap_data_df(merged_df, sorted_combinations_configs, speed_columns, root)
 
+#.
