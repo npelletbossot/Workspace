@@ -582,8 +582,15 @@ def plot_single_heatmap_ratio(
     cbar = plt.colorbar(c, ax=ax)
     cbar.set_label(title_bar)
 
+    s = config_num["s"]    
+    l = config_num["l"]
+    bpmin = config_num["bpmin"]
+    land_num = config_num["land"]
+    land_den = config_den["land"]
+    title = rf"$\frac{{\text{{{land_num}}}}}{{\text{{{land_den}}}}}$ : s = {s} | l = {l} | bpmin = {bpmin}"
+
     if title:
-        ax.set_title(f"num: {config_num}\nden: {config_den}", fontsize=8)
+        ax.set_title(title)
 
     ax.set_xlabel("$\\mu(\\sigma)$")
     ax.set_ylabel("$\\theta(\\sigma)$")
