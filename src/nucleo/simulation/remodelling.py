@@ -153,7 +153,7 @@ def remodelling_obstacle(
         else:
             rank_obs = int((x - start) / s)
             alpha_array[start + rank_obs * s : start + (rank_obs + 1) * s] = alphar
-                
+                    
     return np.array(alpha_array)
     
     

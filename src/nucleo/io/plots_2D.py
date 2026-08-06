@@ -140,6 +140,7 @@ def plot_single_heatmap(
             vmax=wmax,
             shading="auto"
         )
+        title_bar = title_bar_mini + f"{speed_col_label(speed_col)}"
 
     # ─────────────────────────────────────────────
     # Other variables

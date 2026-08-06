@@ -9,6 +9,7 @@ Reading results of simulations, etc.
 # 1 : Librairies
 # ─────────────────────────────────────────────
 
+import os
 import pickle
 import numpy as np
 import polars as pl
@@ -179,6 +180,86 @@ def reading_all_parquet(
     df = load_scalar_columns(paths, extra_cols)
 
     return df.sort(by=PARAMS)
+
+
+def match_folder(folder_name, params):
+    """
+    Check if all parameters are present in the folder name.
+    Handles integer/float scientific notation formats.
+    """
+    for key, value in params.items():
+
+        if isinstance(value, (int, float)):
+            possible_values = [
+                str(value),
+                f"{value:.1e}"
+            ]
+        else:
+            possible_values = [str(value)]
+
+        if not any(f"{key}={v}__" in folder_name for v in possible_values):
+            return False
+
+    return True
+
+
+def find_parquet_and_load(
+        base_folder=Path.home() / "Documents" / "Workspace" / "nucleo" / "outputs" / "NUCLEO__PSMN__2026-07-09",
+        **params
+) -> pl.DataFrame | None:
+    """
+    Search recursively for a folder matching parameters,
+    then load the first parquet file found inside.
+    """
+
+    # List first-level folders
+    subdirs = [
+        os.path.join(base_folder, d)
+        for d in os.listdir(base_folder)
+        if os.path.isdir(os.path.join(base_folder, d))
+    ]
+
+    for subdir in tqdm(subdirs, desc="Loading subfiles", unit="subfiles"):
+
+        for dirpath, dirnames, filenames in os.walk(subdir):
+
+            for dirname in dirnames:
+
+                if match_folder(dirname, params):
+
+                    subdir_path = os.path.join(dirpath, dirname)
+
+                    print(f"\nCorresponding subfile found:")
+                    print(subdir_path)
+
+                    # Search parquet files
+                    parquet_files = [
+                        f for f in os.listdir(subdir_path)
+                        if f.endswith(".parquet")
+                    ]
+
+                    if len(parquet_files) == 0:
+                        print("No parquet file found in folder.")
+                        return None
+
+                    pq_path = os.path.join(subdir_path, parquet_files[0])
+
+                    try:
+                        df_polars = pl.read_parquet(pq_path)
+
+                        pl.Config.set_tbl_cols(len(df_polars.columns))
+
+                        print(f"File loaded successfully: {parquet_files[0]}")
+                        print(f"Shape: {df_polars.shape}")
+
+                        return df_polars
+
+                    except Exception as e:
+                        print("Error loading parquet:", e)
+                        return None
+
+    print("No sub-folders match the specified criteria.")
+    return None
 
 
 # 2.2 Main files

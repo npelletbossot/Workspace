@@ -134,20 +134,27 @@ def plot_trajectories(tmax, times, results, results_mean, results_med, results_s
 
 
 def plot_fpt_distrib_2d(fpt_distrib_2D, tmax, time_bin, ax=None):
-    ax.set_title('Distribution of fpts')
-    im = ax.imshow(fpt_distrib_2D, aspect='auto', cmap='bwr', origin='lower', vmin=0, vmax=0.01)
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(8,6))
+    ax.set_title("Distribution of FPTs")
+    im = ax.imshow(
+        fpt_distrib_2D,
+        aspect="auto",
+        origin="lower",
+        cmap="bwr",
+        vmin=0,
+        vmax=0.01,
+    )
     num_bins = fpt_distrib_2D.shape[1]
-    x_ticks = np.arange(0, num_bins, step=max(1, num_bins // 10))
-    x_labels = x_ticks * time_bin
-    # ax.set_xticks(x_ticks)
-    # ax.set_xticklabels(x_labels)
-    ax.set_xlabel('x (a.u.)')
-    ax.set_ylabel('t (a.u.)')
-    # ax.set_xlim([0, 10_000])
-    ax.set_ylim([0, tmax - 1])
+    x_ticks = np.arange(0, num_bins, max(1, num_bins // 5))
+    ax.set_xticks(x_ticks)
+    ax.set_xticklabels((x_ticks * time_bin).astype(int))
+    ax.set_xlabel("Position x")
+    ax.set_ylabel("Time t")
+    ax.set_ylim(0, tmax - 1)
     plt.colorbar(im, ax=ax, label='Value')
     ax.grid(True, which='both')
-
+    return ax
 
 def plot_fpt_number(nt, tmax, fpt_number, time_bin, ax=None):
     ax.set_title(f'Number of trajectories that reached')
@@ -195,7 +202,7 @@ def plot_speed_distribution(vi_points, vi_distrib, vi_mean, vi_med, vi_mp, ax=No
 def plot_fitting_summary(times, positions, v_mean,
                          xt_over_t, G,
                          vf, vf_std, Cf, Cf_std, wf, wf_std,
-                         bound_low=5, bound_high=80,
+                         bound_low=5, bound_high=95,
                          rf=3, text_size=16, ax=None):
     """
     Plot all fitting steps in a 2x4 panel grid.
@@ -229,22 +236,22 @@ def plot_fitting_summary(times, positions, v_mean,
 
     # --- Subplot 1: x(t) - Cartesian ---
     axes[0, 0].plot(times_to_plot, pos_to_plot, marker='o', alpha=0.5, label='data', c='b')
-    axes[0, 0].plot(times_to_plot, v_mean * times_to_plot, marker='+', label='linear_fit', c='r')
+    axes[0, 0].plot(times_to_plot, v_mean * times_to_plot, marker='+', label=rf'linear_fit: $v_{{\text{{mean}}}} = {np.round(v_mean, rf)}$', c='r')
     axes[0, 0].axvline(x=bound_low, ls=':')
     axes[0, 0].axvline(x=bound_high, ls='--')
-    axes[0, 0].set_title("x(t) - Cartesian Scale")
-    axes[0, 0].set_xlabel("Time (t)")
+    axes[0, 0].set_title("x(t) - Cartesian")
+    axes[0, 0].set_xlabel(r"Time $t~(1/k_0)$")
     axes[0, 0].set_ylabel("Position (x)")
     axes[0, 0].legend()
     axes[0, 0].grid(True)
 
     # --- Subplot 2: x(t) - Log-Log ---
     axes[1, 0].plot(times_to_plot, pos_to_plot, marker='o', alpha=0.5, label='data', c='b')
-    axes[1, 0].plot(times_to_plot, v_mean * times_to_plot, marker='+', label='linear_fit', c='r')
+    axes[1, 0].plot(times_to_plot, v_mean * times_to_plot, marker='+', label=rf'linear_fit: $v_{{\text{{mean}}}} = {np.round(v_mean, rf)}$', c='r')
     axes[1, 0].axvline(x=bound_low, ls=':')
     axes[1, 0].axvline(x=bound_high, ls='--')
-    axes[1, 0].set_title("x(t) - Log-Log Scale")
-    axes[1, 0].set_xlabel("Time (t)")
+    axes[1, 0].set_title("x(t) - Log-Log")
+    axes[1, 0].set_xlabel(r"Time $t~(1/k_0)$")
     axes[1, 0].set_ylabel("Position (x)")
     axes[1, 0].loglog()
     axes[1, 0].legend()
@@ -254,9 +261,9 @@ def plot_fitting_summary(times, positions, v_mean,
     axes[0, 1].plot(times[1:], xt_over_t, marker='o', alpha=0.5, label='x(t)/t', c='g')
     axes[0, 1].axvline(x=bound_low, ls=':')
     axes[0, 1].axvline(x=bound_high, ls='--')
-    axes[0, 1].axhline(y=vf, c='r', ls=':', label = f"vf = {np.round(vf, rf)} ± {np.round(vf_std, rf)}")
-    axes[0, 1].set_title("x(t)/t - Cartesian Scale")
-    axes[0, 1].set_xlabel("Time (t)")
+    axes[0, 1].axhline(y=vf, c='r', ls=':', label = rf"$v_f = {np.round(vf, rf)} ± {np.round(vf_std, rf)}$")
+    axes[0, 1].set_title("x(t)/t - Cartesian")
+    axes[0, 1].set_xlabel(r"Time $t~(1/k_0)$")
     axes[0, 1].set_ylabel("x(t)/t")
     axes[0, 1].legend()
     axes[0, 1].grid(True)
@@ -265,9 +272,9 @@ def plot_fitting_summary(times, positions, v_mean,
     axes[1, 1].plot(times[1:], xt_over_t, marker='o', alpha=0.5, label='x(t)/t', c='g')
     axes[1, 1].axvline(x=bound_low, ls=':')
     axes[1, 1].axvline(x=bound_high, ls='--')
-    axes[1, 1].axhline(y=vf, c='r', ls=':', label = f"vf = {np.round(vf, rf)} ± {np.round(vf_std, rf)}")
-    axes[1, 1].set_title("x(t)/t - Log-Log Scale")
-    axes[1, 1].set_xlabel("Time (t)")
+    axes[1, 1].axhline(y=vf, c='r', ls=':', label = rf"$v_f = {np.round(vf, rf)} ± {np.round(vf_std, rf)}$")
+    axes[1, 1].set_title("x(t)/t - Log-Log")
+    axes[1, 1].set_xlabel(r"Time $t~(1/k_0)$")
     axes[1, 1].set_ylabel("x(t)/t")
     axes[1, 1].loglog()
     axes[1, 1].legend()
@@ -277,9 +284,9 @@ def plot_fitting_summary(times, positions, v_mean,
     axes[0, 2].plot(times[1:-1], G, marker='o', alpha=0.5, label='G', c='orange')
     axes[0, 2].axvline(x=bound_low, ls=':')
     axes[0, 2].axvline(x=bound_high, ls='--')
-    axes[0, 2].axhline(y=wf, c='r', ls='--', label = f"wf = {np.round(wf, rf)} ± {np.round(wf_std, rf)}")
+    axes[0, 2].axhline(y=wf, c='r', ls='--', label = rf"$w_f = {np.round(wf, rf)} ± {np.round(wf_std, rf)}$")
     axes[0, 2].set_title("Log Derivative (G) - Cartesian")
-    axes[0, 2].set_xlabel("Time (t)")
+    axes[0, 2].set_xlabel(r"Time $t~(1/k_0)$")
     axes[0, 2].set_ylabel("G")
     axes[0, 2].legend()
     axes[0, 2].grid(True)
@@ -288,9 +295,9 @@ def plot_fitting_summary(times, positions, v_mean,
     axes[1, 2].plot(times[1:-1], G, marker='o', alpha=0.5, label='G', c='orange')
     axes[1, 2].axvline(x=bound_low, ls=':')
     axes[1, 2].axvline(x=bound_high, ls='--')
-    axes[1, 2].axhline(y=wf, c='r', ls='--', label = f"wf = {np.round(wf, rf)} ± {np.round(wf_std, rf)}")
+    axes[1, 2].axhline(y=wf, c='r', ls='--', label = rf"$w_f = {np.round(wf, rf)} ± {np.round(wf_std, rf)}$")
     axes[1, 2].set_title("Log Derivative (G) - Log-Log")
-    axes[1, 2].set_xlabel("Time (t)")
+    axes[1, 2].set_xlabel(r"Time $t~(1/k_0)$")
     axes[1, 2].set_ylabel("G")
     axes[1, 2].loglog()
     axes[1, 2].legend()
@@ -298,25 +305,25 @@ def plot_fitting_summary(times, positions, v_mean,
 
     # --- Subplot 7: Final result - Cartesian ---
     axes[0, 3].plot(times_to_plot, pos_to_plot, marker='o', alpha=0.5, label='data', c='b')
-    axes[0, 3].plot(times[:bound_low], times[:bound_low] * vf, label = f"vf = {np.round(vf, rf)} ± {np.round(vf_std, rf)}", c='r', marker='x')
-    axes[0, 3].plot(times[bound_high:], Cf * np.power(times[bound_high:], wf), label = f"wf = {np.round(wf, rf)} ± {np.round(wf_std, rf)}", c='r', marker='+')
+    axes[0, 3].plot(times[:bound_low], times[:bound_low] * vf, label = rf"$v_f = {np.round(vf, rf)} ± {np.round(vf_std, rf)}$", c='r', marker='x')
+    axes[0, 3].plot(times[bound_high:], Cf * np.power(times[bound_high:], wf), label = rf"$w_f = {np.round(wf, rf)} ± {np.round(wf_std, rf)}$", c='r', marker='+')
     axes[0, 3].axvline(x=bound_low, ls=':')
     axes[0, 3].axvline(x=bound_high, ls='--')
     axes[0, 3].set_title("Final Result - Cartesian")
-    axes[0, 3].set_xlabel("Time (t)")
+    axes[0, 3].set_xlabel(r"Time $t~(1/k_0)$")
     axes[0, 3].set_ylabel("Position (x)")
     axes[0, 3].legend()
     axes[0, 3].grid(True)
 
     # --- Subplot 8: Final result - Log-Log ---
     axes[1, 3].plot(times_to_plot, pos_to_plot, marker='o', alpha=0.5, label='data', c='b')
-    axes[1, 3].plot(times[:bound_low], vf * times[:bound_low], label = f"vf = {np.round(vf, rf)} ± {np.round(vf_std, rf)}", c='r', marker='x')
-    axes[1, 3].plot(times[bound_high:], Cf * np.power(times[bound_high:], wf), label = f"wf = {np.round(wf, rf)} ± {np.round(wf_std, rf)}", c='r', marker='+')
+    axes[1, 3].plot(times[:bound_low], vf * times[:bound_low], label = rf"$v_f = {np.round(vf, rf)} ± {np.round(vf_std, rf)}$", c='r', marker='x')
+    axes[1, 3].plot(times[bound_high:], Cf * np.power(times[bound_high:], wf), label = rf"$w_f = {np.round(wf, rf)} ± {np.round(wf_std, rf)}$", c='r', marker='+')
     axes[1, 3].axvline(x=bound_low, ls=':')
     axes[1, 3].axvline(x=bound_high, ls='--')
     axes[1, 3].set_title("Final Result - Log-Log")
-    axes[1, 3].set_xlabel("Time (log)")
-    axes[1, 3].set_ylabel("Position (log)")
+    axes[1, 3].set_xlabel(r"Time $t~(1/k_0)$")
+    axes[1, 3].set_ylabel("Position (x)")
     axes[1, 3].loglog()
     axes[1, 3].legend()
     axes[1, 3].grid(True, which="both", linestyle='--')
