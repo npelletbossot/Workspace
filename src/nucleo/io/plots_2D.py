@@ -214,7 +214,8 @@ def plot_single_heatmap(
     ax.set_xlabel("$\\mu(\\sigma)$")
     ax.set_ylabel("$\\theta(\\sigma)$")
 
-    ax.set_xticks(np.arange(100, 500+1, 100))
+    ax.set_xlim(100, 600)       
+    ax.set_xticks(np.arange(100, 600+1, 100))
     ax.set_yticks(np.arange(20, 100+1, 20))
 
     return c
@@ -596,7 +597,8 @@ def plot_single_heatmap_ratio(
     ax.set_xlabel("$\\mu(\\sigma)$")
     ax.set_ylabel("$\\theta(\\sigma)$")
 
-    ax.set_xticks(np.arange(100, 500+1, 100))
+    ax.set_xlim(100, 600)
+    ax.set_xticks(np.arange(100, 600+1, 100))
     ax.set_yticks(np.arange(20, 100+1, 20))
 
     return c
