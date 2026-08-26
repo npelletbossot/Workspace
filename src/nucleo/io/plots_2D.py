@@ -511,15 +511,23 @@ def plot_single_heatmap_ratio(
     # vmin / vmax / titre colorbar
     # ─────────────────────────────────────────────
 
+    land_num = config_num["land"]
+    land_den = config_den["land"]
+
+    if speed_col == "vf":
+        speed_col = {speed_col_label(speed_col)}
+
     if plot_log2:
         with np.errstate(divide="ignore", invalid="ignore"):
             data_to_plot = np.log2(data)
         default_vmin, default_vmax = -2, 2
-        title_bar = f"log₂ ({speed_col_label(speed_col)} ratio)"
+        title_bar = rf"$\log_2 (v_{{init}}^{{\text{{{land_num}}}}} ~/~ v_{{init}}^{{\text{{{land_den}}}}})$"
     else:
         data_to_plot = data
         default_vmin, default_vmax = 0, 2
-        title_bar = f"{speed_col_label(speed_col)} ratio"
+        title_bar = rf"${speed_col}_{{init}}^{{\text{{{land_num}}}}} ~/~ {speed_col}_{{init}}^{{\text{{{land_den}}}}}$"
+
+    print(speed_col)
 
     if vmin is None:
         vmin = default_vmin
@@ -587,8 +595,6 @@ def plot_single_heatmap_ratio(
     s = config_num["s"]    
     l = config_num["l"]
     bpmin = config_num["bpmin"]
-    land_num = config_num["land"]
-    land_den = config_den["land"]
     title = rf"$\frac{{\text{{{land_num}}}}}{{\text{{{land_den}}}}}$ : s = {s} | l = {l} | bpmin = {bpmin}"
 
     if title:
