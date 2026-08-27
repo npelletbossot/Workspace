@@ -166,8 +166,8 @@ def choose_configuration(config: str) -> dict:
             "s": np.array([35], dtype=int)
         }, 
         "probas": {
-            "mu": np.array([150], dtype=int),
-            "theta": np.array([25, 50, 100], dtype=int),
+            "mu": np.array([150, 500], dtype=int),
+            "theta": np.array([50, 100, 300], dtype=int),
             "alphao": np.array([PROBAS["alphao"]], dtype=float),
             "alphaf": np.array([PROBAS["alphaf"]], dtype=float),
             "beta": np.array([PROBAS["beta"]], dtype=float),
