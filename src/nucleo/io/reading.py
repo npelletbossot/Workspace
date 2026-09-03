@@ -205,6 +205,7 @@ def match_folder(folder_name, params):
 
 def find_parquet_and_load(
         base_folder=Path.home() / "Documents" / "Workspace" / "nucleo" / "outputs" / "NUCLEO__PSMN__2026-08-15",
+        # base_folder="/media/nicolas/Crucial X6/Save__260820/Workspace/nucleo/outputs/NUCLEO__PSMN__2026-08-15",
         **params
 ) -> pl.DataFrame | None:
     """
