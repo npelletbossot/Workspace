@@ -416,7 +416,7 @@ def choose_configuration(config: str) -> dict:
             "formalism": {**FORMALISMS['alg1']},
             "probas": {
                 **TEST__BASE["probas"],
-                "alphac": np.array([1.00], dtype=float),
+                "alphac": np.array([0.60, 1.00], dtype=float),
             },
             "rates": {
                 **TEST__BASE["rates"],
@@ -440,7 +440,7 @@ def choose_configuration(config: str) -> dict:
             "formalism": {**FORMALISMS['alg2']},
             "probas": {
                 **TEST__BASE["probas"],
-                "alphac": np.array([1.00], dtype=float),
+                "alphac": np.array([0.60, 1.00], dtype=float),
             },
             "rates": {
                 **TEST__BASE["rates"],
