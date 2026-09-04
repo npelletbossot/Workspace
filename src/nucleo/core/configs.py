@@ -222,10 +222,10 @@ def choose_configuration(config: str) -> dict:
     }
     
     TEST__BASE = {
-        "formalism": {**FORMALISMS['alg2_passive_full']},
+        "formalism": {**FORMALISMS['alg2']},
         "geometry": {
             "land": np.array(['homogen', 'periodic', 'random']),
-            "s": np.array([35], dtype=int),
+            "s": np.array([150, 0], dtype=int),
             "l": np.array([10], dtype=int),
             "bpmin": np.array([0], dtype=int)
         },
@@ -411,11 +411,12 @@ def choose_configuration(config: str) -> dict:
         
         # ---- TESTS ---- #
         
-        "TEST": {
+        "TEST_1S": {
             **TEST__BASE,
+            "formalism": {**FORMALISMS['alg1']},
             "probas": {
                 **TEST__BASE["probas"],
-                "alphac": np.array([0.60], dtype=float),
+                "alphac": np.array([1.00], dtype=float),
             },
             "rates": {
                 **TEST__BASE["rates"],
@@ -425,12 +426,36 @@ def choose_configuration(config: str) -> dict:
             },
             "meta": {
                 **TEST__BASE["meta"],
-                "nt": 100,
-                "path": f"{PROJECT['project_name']}__test"
+                "nt": 10_000,
+                "path": f"{PROJECT['project_name']}__test1S"
             },
             "time": {
                 **TIME,
-                "dt": 1e-1
+                "dt": 1
+            }
+        },
+
+        "TEST_2S": {
+            **TEST__BASE,
+            "formalism": {**FORMALISMS['alg2']},
+            "probas": {
+                **TEST__BASE["probas"],
+                "alphac": np.array([1.00], dtype=float),
+            },
+            "rates": {
+                **TEST__BASE["rates"],
+                "Kp": np.array([0.00], dtype=float),
+                "rcapt": np.array([2.00], dtype=float),
+                "rrest": np.array([2.00], dtype=float),
+            },
+            "meta": {
+                **TEST__BASE["meta"],
+                "nt": 10_000,
+                "path": f"{PROJECT['project_name']}__test2S"
+            },
+            "time": {
+                **TIME,
+                "dt": 1
             }
         },
 

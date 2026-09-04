@@ -221,7 +221,7 @@ def main(STUDY):
         "RYU": ["TWO_STEPS"],
         "FACT": ["FACT_PASSIVE_FULL", "FACT_PASSIVE_MEMORY", "FACT_ACTIVE_FULL", "FACT_ACTIVE_MEMORY"],
         "FIGURES": ["FIGURE_1", "FIGURE_2", "FIGURE_3"],
-        "TEST": ["TEST"]
+        "TESTS": ["TEST_1S", "TEST_2S"]
     }
 
     all_values = [v for values in CONFIG.values() for v in values]

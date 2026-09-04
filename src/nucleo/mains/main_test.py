@@ -24,11 +24,11 @@ import multiprocessing
 #     "RYU": ["TWO_STEPS"],
 #     "FACT": ["FACT_PASSIVE_FULL", "FACT_PASSIVE_MEMORY", "FACT_ACTIVE_FULL", "FACT_ACTIVE_MEMORY"],
 #     "FIGURES": ["FIGURE_1", "FIGURE_2", "FIGURE_3"],
-#     "TEST": ["TEST"]
+#     "TESTS": ["TEST_1S", "TEST_2S"]
 # }
 
 if __name__ == "__main__":
     multiprocessing.set_start_method("spawn", force=True)
     main(
-        STUDY = "TEST"
+        STUDY = "TESTS"
 )
